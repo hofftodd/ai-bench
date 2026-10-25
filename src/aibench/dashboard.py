@@ -113,7 +113,9 @@ def _bar_chart(title: str, axis: str, rows: list[dict[str, Any]], col: str, top:
     top = top or max(_num(r[col]) for r in rows) * 1.05
     names = ", ".join(json.dumps(r["model"]) for r in rows)
     values = ", ".join(str(_num(r[col])) for r in rows)
-    return (f'```mermaid\nxychart-beta horizontal\n    title "{title}"\n    x-axis [{names}]\n'
+    init = ('%%{init: {"xyChart": {"showDataLabel": true}, '
+            '"themeVariables": {"xyChart": {"plotColorPalette": "#3b6fd4"}}}}%%')
+    return (f'```mermaid\n{init}\nxychart-beta horizontal\n    title "{title}"\n    x-axis [{names}]\n'
             f'    y-axis "{axis}" 0 --> {top:.0f}\n    bar [{values}]\n```\n')
 
 
