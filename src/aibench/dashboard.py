@@ -27,6 +27,8 @@ METRICS: dict[str, tuple[str, str]] = {
     "lcb_pass_pct": ("livecodebench", "pass@1"),
     "terminal_x3_wall_min": ("terminal-x3", "wall"),
     "lcb_wall_min": ("livecodebench", "wall"),
+    "lcb64k_pass_pct": ("livecodebench-64k", "pass@1"),
+    "lcb64k_truncated": ("livecodebench-64k", "truncated"),
     "humaneval_quick_pass_pct": ("humaneval-quick", "pass@1"),
     "humaneval_quick_plus_pct": ("humaneval-quick", "plus@1"),
     "terminal_quick_pass_pct": ("terminal-quick", "pass"),
@@ -40,7 +42,17 @@ DETAILS: dict[str, tuple[str, str]] = {
     "terminal_x3_episodes": ("terminal-x3", "episodes"),
     "lcb_problems": ("livecodebench", "problems"),
 }
-COLUMNS = ["model", "backend", "overnight_order", "overnight_status", *METRICS, *DETAILS]
+COLUMNS = ["model", "backend", "overnight_order", "overnight_status", *METRICS, "terminal_x3_orig_pct", *DETAILS]
+
+# terminal-x3 shipped with a broken backup-rotation task (it failed any model that tested its script).
+# The fixed task was re-run on its own; its per-task result replaces the old one in terminal_x3_pass_pct.
+TERMINAL_FIX = "terminal-backup-rotation"
+
+
+def _rescore(x3: dict, fix: dict) -> float:
+    per = {**x3["details"]["per_task"], **fix["details"]["per_task"]}
+    passed, total = (sum(int(v.split("/")[i]) for v in per.values()) for i in (0, 1))
+    return 100 * passed / total
 
 
 def build_rows(runs: list[dict[str, Any]], hardware: str | None = None) -> list[dict[str, Any]]:
@@ -85,6 +97,45 @@ def build_rows(runs: list[dict[str, Any]], hardware: str | None = None) -> list[
             row[col] = "" if v is None else _fmt(v)
         for col, (suite, key) in DETAILS.items():
             row[col] = ((suites.get(suite) or {}).get("details") or {}).get(key, "")
+        row["terminal_x3_orig_pct"] = row["terminal_x3_pass_pct"]
+        if "terminal-x3" in suites and TERMINAL_FIX in suites:
+            row["terminal_x3_pass_pct"] = _fmt(_rescore(suites["terminal-x3"], suites[TERMINAL_FIX]))
+        rows.append(row)
+    return rows
+
+
+def _latest(runs: list[dict[str, Any]], hardware: str) -> dict[str, dict[str, dict]]:
+    out: dict[str, dict[str, dict]] = {}
+    for run in runs:
+        if run.get("hardware") == hardware:
+            for res in run.get("results", []):
+                if not res.get("error"):
+                    out.setdefault(res["model"], {})[res["suite"]] = res
+    return out
+
+
+# (column, suite on the base hardware, suite on the compared hardware, metric)
+COMPARE = [("tg8k", "speed-quick", "speed-quick", "tg@8k"), ("pp8k", "speed-quick", "speed-quick", "pp8k"),
+           ("bench_tg128", "kernels", "kernels-rocm", "tg128"), ("bench_pp512", "kernels", "kernels-rocm", "pp512")]
+
+
+def compare_rows(runs: list[dict[str, Any]], base: str, other: str, suffix: str = "-rocm") -> list[dict[str, Any]]:
+    """Speed of each model on `base` next to its `<model><suffix>` twin on `other` (e.g. Vulkan vs ROCm)."""
+    a, b = _latest(runs, base), _latest(runs, other)
+
+    def val(suites: dict, suite: str, metric: str) -> float | None:
+        return ((suites.get(suite) or {}).get("metrics") or {}).get(metric, {}).get("value")
+
+    rows = []
+    for m in sorted(a):
+        if m + suffix not in b:
+            continue
+        row: dict[str, Any] = {"model": m}
+        for col, sa, sb, metric in COMPARE:
+            va, vb = val(a[m], sa, metric), val(b[m + suffix], sb, metric)
+            row[f"{col}_a"] = "" if va is None else _fmt(va)
+            row[f"{col}_b"] = "" if vb is None else _fmt(vb)
+            row[f"{col}_delta"] = f"{100 * (vb - va) / va:+.0f}%" if va and vb else ""
         rows.append(row)
     return rows
 
@@ -140,7 +191,8 @@ def _table(rows: list[dict[str, Any]], cols: dict[str, str], higher: dict[str, b
     return "\n".join(lines) + "\n"
 
 
-def write_markdown(rows: list[dict[str, Any]], out: Path, hardware: str) -> Path:
+def write_markdown(rows: list[dict[str, Any]], out: Path, hardware: str,
+                   compare: list[dict[str, Any]] | None = None, other: str = "") -> Path:
     """RESULTS.md: the dashboard as Markdown + Mermaid, for reading on GitHub."""
     done = [r for r in rows if r["overnight_status"] == "done"]
 
@@ -172,16 +224,20 @@ def write_markdown(rows: list[dict[str, Any]], out: Path, hardware: str) -> Path
     parts += [
         "\n## Overnight profile\n\n",
         "**terminal-x3** runs 18 agentic shell tasks three times each (54 episodes) in a Docker sandbox. "
-        "**LiveCodeBench** is an evenly spaced sample of 15 medium and 15 hard v6 problems (Jan–Apr 2025).\n\n",
+        "Its `backup-rotation` task was broken in the original runs (it failed any model that tested its script). "
+        "The fixed task was re-run on its own, and the scores here use that result; \"as run\" is the original "
+        "score. **LiveCodeBench** is an evenly spaced sample of 15 medium and 15 hard v6 problems (Jan–Apr 2025), "
+        "with a 32k-token budget; **LCB 64k** re-runs the same problems with 64k for models that ran out of room.\n\n",
         _bar_chart("terminal-x3 pass rate (%)", "pass %", done, "terminal_x3_pass_pct", 100), "\n",
         _bar_chart("LiveCodeBench pass@1 (%)", "pass@1 %", done, "lcb_pass_pct", 100), "\n",
         _table(rows, {"model": "Model", "overnight_status": "Status", "terminal_x3_pass_pct": "terminal-x3 %",
-                      "lcb_pass_pct": "LCB pass@1 %", "lcb_truncated": "LCB cut off", "lcb_problems": "LCB problems",
-                      "terminal_x3_wall_min": "terminal-x3 min", "lcb_wall_min": "LCB min"},
-               {"terminal_x3_pass_pct": True, "lcb_pass_pct": True}),
-        "\n\"Cut off\" counts LiveCodeBench answers that hit `max_tokens` (32,768) before finishing. Those score as "
-        "failures, so the cap pulls down models that think at length. Strata loaded while VRAM from the previous "
-        "model was still in use, so read its numbers with care. [TODO.md](TODO.md) has more caveats.\n",
+                      "terminal_x3_orig_pct": "as run %", "lcb_pass_pct": "LCB pass@1 %",
+                      "lcb_truncated": "LCB cut off", "lcb64k_pass_pct": "LCB 64k %",
+                      "lcb64k_truncated": "64k cut off", "terminal_x3_wall_min": "terminal-x3 min",
+                      "lcb_wall_min": "LCB min"},
+               {"terminal_x3_pass_pct": True, "lcb_pass_pct": True, "lcb64k_pass_pct": True}),
+        "\n\"Cut off\" counts LiveCodeBench answers that hit `max_tokens` before finishing. Those score as "
+        "failures, so the cap pulls down models that think at length. [TODO.md](TODO.md) has more caveats.\n",
         "\n## Speed and quick profile\n\n",
         "Server-measured speeds from each model's latest `speed-quick` run (llama.cpp timings), plus a 40-problem "
         "HumanEval+ subset and six terminal tasks.\n\n",
@@ -194,6 +250,16 @@ def write_markdown(rows: list[dict[str, Any]], out: Path, hardware: str) -> Path
                 "tg512_tok_s": True, "pp8k_tok_s": True, "tg8k_tok_s": True, "ttft8k_s": False}),
         "\nBold marks the best value in a column. — means the model hasn't run that suite yet.\n",
     ]
+    if compare:
+        parts += [
+            f"\n## `{hardware}` vs `{other}`\n\n",
+            "The same GGUFs and llama.cpp release (b11850) on both backends. Server speeds come from `speed-quick`; "
+            "the llama-bench columns are raw kernel throughput (`kernels` / `kernels-rocm`, no server).\n\n",
+            _table(compare, {"model": "Model", "tg8k_a": f"Gen @8k {hardware}", "tg8k_b": other, "tg8k_delta": "Δ",
+                             "pp8k_a": f"Prompt 8k {hardware}", "pp8k_b": other, "pp8k_delta": "Δ",
+                             "bench_tg128_a": f"llama-bench tg128 {hardware}", "bench_tg128_b": other,
+                             "bench_pp512_a": f"llama-bench pp512 {hardware}", "bench_pp512_b": other}, {}),
+        ]
     out.write_text("".join(parts))
     return out
 

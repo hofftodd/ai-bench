@@ -152,10 +152,13 @@ def cmd_dashboard(args):
     cfg = _cfg(args)
     root = Path(args.dir) if args.dir else cfg.base_dir / "dashboard"
     hardware = args.hardware or cfg.hardware   # one box/backend per dashboard; ROCm runs carry another label
-    rows = dashboard.build_rows(report.load_runs([cfg.results_dir]), hardware=hardware)
+    runs = report.load_runs([cfg.results_dir])
+    rows = dashboard.build_rows(runs, hardware=hardware)
     out = dashboard.write_data(rows, root / "data")
     console.print(f"wrote {out} ({len(rows)} models)")
-    md = dashboard.write_markdown(rows, cfg.base_dir / "RESULTS.md", hardware)
+    other = hardware.replace("-vulkan", "-rocm")   # the *-rocm model twins run under this label
+    compare = dashboard.compare_rows(runs, hardware, other) if other != hardware else []
+    md = dashboard.write_markdown(rows, cfg.base_dir / "RESULTS.md", hardware, compare, other)
     console.print(f"wrote {md}")
     if args.serve:
         dashboard.serve(root, args.host, args.port)

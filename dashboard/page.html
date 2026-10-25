@@ -115,7 +115,7 @@
   <section class="rb-card" id="overnight-table">
     <div class="rb-card-head">
       <h2>Overnight results</h2>
-      <p class="rb-note">"Cut off" counts LiveCodeBench answers that hit the max_tokens limit before finishing; those score as failures, so the cap pulls down LCB for models that think at length. Strata loaded while VRAM from the previous model was still in use, so read its numbers with care.</p>
+      <p class="rb-note">terminal-x3 uses the re-run of the fixed backup-rotation task; "as run" is the original score, when that task failed any model that tested its script. "Cut off" counts LiveCodeBench answers that hit the max_tokens limit (32k) before finishing; those score as failures, so the cap pulls down models that think at length. "LCB 64k" re-runs the same problems with a 64k budget.</p>
     </div>
     <div class="rb-tablewrap">
       <table data-source="models" data-row-key="model">
@@ -123,9 +123,11 @@
           <th data-field="model">Model</th>
           <th data-field="overnight_status" class="l">Status</th>
           <th data-field="terminal_x3_pass_pct">terminal-x3 %</th>
+          <th data-field="terminal_x3_orig_pct">as run %</th>
           <th data-field="lcb_pass_pct">LCB pass@1 %</th>
           <th data-field="lcb_truncated">LCB cut off</th>
-          <th data-field="lcb_problems">LCB problems</th>
+          <th data-field="lcb64k_pass_pct">LCB 64k %</th>
+          <th data-field="lcb64k_truncated">64k cut off</th>
           <th data-field="terminal_x3_wall_min">terminal-x3 min</th>
           <th data-field="lcb_wall_min">LCB min</th>
         </tr></thead>
@@ -393,7 +395,7 @@ dash.calc('summary', {
     takeaway(s);
     steps(d);
     table('tbody-overnight', d,
-      ['model', 'overnight_status', 'terminal_x3_pass_pct', 'lcb_pass_pct', 'lcb_truncated', 'lcb_problems', 'terminal_x3_wall_min', 'lcb_wall_min'],
+      ['model', 'overnight_status', 'terminal_x3_pass_pct', 'terminal_x3_orig_pct', 'lcb_pass_pct', 'lcb_truncated', 'lcb64k_pass_pct', 'lcb64k_truncated', 'terminal_x3_wall_min', 'lcb_wall_min'],
       ['overnight_status']);
     table('tbody-quick', d,
       ['model', 'backend', 'humaneval_quick_pass_pct', 'humaneval_quick_plus_pct', 'terminal_quick_pass_pct', 'pp512_tok_s', 'tg512_tok_s', 'pp8k_tok_s', 'tg8k_tok_s', 'ttft8k_s'],
@@ -412,7 +414,7 @@ dash.calc('summary', {
         fmt: pct,
         tick: (v) => v + '%',
         tipLines: (r) => [
-          { color: dash.colors[0], text: `terminal-x3  ${pct(n(r.terminal_x3_pass_pct))} of ${show(r.terminal_x3_episodes)} episodes` },
+          { color: dash.colors[0], text: `terminal-x3  ${pct(n(r.terminal_x3_pass_pct))} of ${show(r.terminal_x3_episodes)} episodes (as run ${pct(n(r.terminal_x3_orig_pct))})` },
           { color: dash.colors[1], text: `LiveCodeBench  ${pct(n(r.lcb_pass_pct))}, ${show(r.lcb_truncated)} of ${show(r.lcb_problems)} cut off` },
         ],
       });

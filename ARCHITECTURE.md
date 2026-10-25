@@ -110,6 +110,8 @@ dashboard/
 
 - Overnight metrics come from `terminal-x3` and `livecodebench`. Quick-profile metrics come from `speed-quick`, `humaneval-quick` and `terminal-quick`.
 - `overnight_order` is the order in which models first ran an overnight suite.
+- `terminal_x3_pass_pct` substitutes the re-run of the fixed `backup-rotation` task (suite `terminal-backup-rotation`) when a model has one; `terminal_x3_orig_pct` keeps the score as run.
+- RESULTS.md also gets a Vulkan vs ROCm speed table, pairing each model with its `<model>-rocm` twin run under the `-rocm` hardware label.
 - `overnight_status` is one of:
   - `done`: both overnight suites finished.
   - `running`: the model is in a run with no `finished` timestamp.
