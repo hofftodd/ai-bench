@@ -4,11 +4,26 @@ Open work, known caveats in the current results, and ideas we deliberately left 
 
 ## In progress
 
-- [ ] **Quick-profile speed and HumanEval for ThinkingCap and Laguna.** Queued on 2026-10-25 to start once the Inkling download finishes:
-  ```bash
-  uv run aibench run -m thinkingcap-qwen3.8-27b -m laguna-xs-2.1 -s speed-quick -s humaneval-quick --tag baseline
-  ```
-  The log goes to `logs/baseline-thinkingcap-laguna.log`. Afterwards, refresh the dashboard. `terminal-quick` was skipped because both models already have the more thorough `terminal-x3`, so their "Terminal %" stays empty in the quick table.
+A queue started on 2026-10-25 runs these one at a time, once the Inkling download finishes. It's `logs/queue.sh`, running detached, so it survives the session. Progress goes to `logs/queue.log`, with one log per stage. It rebuilds `dashboard/data/` and `RESULTS.md` after each stage. Committing them, refreshing the hosted dashboard and updating ANALYSIS.md are still manual.
+
+- [ ] **0. Quick-profile speed and HumanEval for ThinkingCap and Laguna** (`baseline` tag, ~40 min). `terminal-quick` is skipped because both already have the more thorough `terminal-x3`. This stage also runs the full `quick` profile for `gemma-4-e4b` (~15 min).
+- [ ] **A. ROCm vs. Vulkan speed** (`rocm-compare` tag, ~2 h). See [ROCm](#rocm-vs-vulkan) below.
+- [ ] **B. Re-run the fixed `backup-rotation` task** for all ten models (`terminal-backup-rotation` suite, `overnight-fix` tag, ~1 h). See the first caveat below.
+- [ ] **C. LiveCodeBench with a 64k thinking budget** (`livecodebench-64k` suite, `overnight-64k` tag, roughly 15–25 h). It covers qwen3.8, ThinkingCap, flint, gemma, qwen3.6 and both Nemotrons. It skips Strata and qwen3-coder (no cut-offs) and Laguna (recommended for retirement).
+- [ ] **D. Re-run Strata's overnight profile on a clean GPU** (~3 h).
+
+Once results land, add the `livecodebench-64k` result and the corrected terminal-x3 score (with the new `backup-rotation` result) to the dashboard and RESULTS.md, and revise ANALYSIS.md.
+
+### ROCm vs. Vulkan
+
+Quality scores don't depend on the backend (same GGUF, same sampling), so only speed is being compared.
+
+- llama.cpp b11850 is built with HIP for gfx1201 in `~/src/llama.cpp-b11850/build-rocm/` (ROCm 7.1, no rocWMMA).
+- The `llamacpp-rocm` backend and the `*-rocm` models in `bench.yaml` reproduce each model's llama-swap flags: context, MTP drafter, q8_0 KV cache, flash attention auto.
+- Six models get `speed-quick` plus raw `kernels-rocm` (llama-bench), labeled `--hardware r9700-rocm`. The same six get `kernels` on Vulkan for the matching number.
+- qwen3.8-27b-rocm and flint-rocm also run `humaneval-quick`. It's a check for a broken build, not a quality comparison.
+- Compare with `uv run aibench report --hardware r9700-vulkan --hardware r9700-rocm -s speed-quick -s kernels -s kernels-rocm`.
+- **If ROCm clearly wins,** move llama-swap's `server` macro to the ROCm build. Re-run quality suites only if outputs look different.
 
 ## Blocked
 
@@ -19,9 +34,9 @@ Open work, known caveats in the current results, and ideas we deliberately left 
 
 ## Caveats in the current results
 
-- [ ] **The `backup-rotation` terminal task is broken.** Its instructions say "Test it", but every test run leaves another today-dated archive. The checker then runs the script twice more and expects the 2024-01-05 archive to survive, which is impossible once three newer archives exist. It failed in 29 of 30 runs across all models, which caps terminal-x3 at 94.4% (17/18).
-  - Fix: have `verify` reset `/work/backups` to its starting state before running the script.
-  - Then re-run just that task for every model, using a terminal suite with `tasks: [backup-rotation]` and `repeats: 3`.
+- [ ] **The `backup-rotation` terminal task was broken.** Its instructions say "Test it", but every test run leaves another today-dated archive. The old checker then ran the script twice more and expected the 2024-01-05 archive to survive, which is impossible once three newer archives exist. It failed in 29 of 30 runs across all models, which caps the existing terminal-x3 scores at 94.4% (17/18).
+  - **Fixed 2026-10-25:** `verify` now restores the starting set of archives before running the script. The self-test passes both untouched and after the solution has been run twice, as a model testing its work would.
+  - The re-run for every model is queued (stage B). Existing terminal-x3 numbers still include the old result until the corrected score is wired into the dashboard.
 - [ ] **LiveCodeBench is capped by `max_tokens: 32768`.** Answers cut off at the cap count as failures, so these models' LCB scores are understated:
 
   | model | cut off (of 30) |
@@ -34,8 +49,10 @@ Open work, known caveats in the current results, and ideas we deliberately left 
   | flint | 7 |
   | laguna-xs-2.1 | 7 |
 
-  To fix this, re-run `livecodebench` for those models with `max_tokens: 65536`. Before doing that, check that the context actually allows it: each server has 4 slots, so unless llama.cpp shares one KV cache across slots, each slot gets `ctx-size / 4`. That's 31,744 tokens for Laguna, already below the current cap. Raise `--ctx-size` in llama-swap, or use `--parallel 2` or a unified KV cache.
-- [ ] **Strata's numbers may be contaminated.** Strata loaded while VRAM from the previous model was still in use. Re-run its suites on a clean GPU.
+  A re-run at `max_tokens: 65536` is queued (stage C, suite `livecodebench-64k`, which uses `max_tokens_override` so it wins over each model's own limit).
+  - **Context check:** llama-swap doesn't set `--parallel`, so llama-server uses one KV cache shared by its 4 slots (`--kv-unified` is the default when the slot count is automatic). A single answer can therefore use the whole context.
+  - Four 66k-token answers at once would overflow a 262k pool, so the suite runs 3 requests at a time.
+- [ ] **Strata's numbers may be contaminated.** Strata loaded while VRAM from the previous model was still in use. A clean re-run of its overnight profile is queued (stage D).
 - [ ] **ThinkingCap vs. Qwen3.8-27B isn't an exact comparison.** ThinkingCap is Q4_K_M, while the base model is Unsloth UD-Q4_K_XL. Grab the same quant of both for a clean comparison.
   - ThinkingCap claims about 37% fewer reasoning tokens. On LCB it averaged 18.5k output tokens vs. 20.3k for the base, about 9% fewer.
 - [ ] **LiveCodeBench uses only 30 problems.** That leaves a standard error of roughly ±9 points, so differences under about 10 points are noise. Consider sampling 60+ problems, or the whole v6 release (175), for the top few models.
@@ -43,11 +60,9 @@ Open work, known caveats in the current results, and ideas we deliberately left 
 
 ## Not yet run
 
-- [ ] `gemma-4-e4b` is the `small` model in `claude-local`, so it's used every day, but it isn't in `bench.yaml` and has never been benchmarked.
 - [ ] `gpt-oss-20b` is in `bench.yaml` and its GGUF is in `~/models`, but it has never been benchmarked.
 - [ ] The `full` profile (`speed` up to 64k prompts, `speed-concurrent`, full HumanEval+ and MBPP+, `terminal`) has never been run.
-- [ ] The `kernels` suite (raw `llama-bench`) has never been run. It's the cleanest number for comparing llama.cpp builds, which will matter when we move off b11850.
-- [ ] The `llamacpp-rocm` backend is configured, but `~/src/llama.cpp/build-rocm/` doesn't exist. Build llama.cpp with HIP to compare ROCm against Vulkan on the same GGUFs.
+- [ ] The `kernels` suite (raw `llama-bench`) runs for six models in stage A. Extend it to the rest when we move off b11850. llama-bench suites now unload the served model first, so put them last in a run.
 - [ ] `terminal-text` hasn't been run. It would show whether any model's terminal failures come from llama-swap's tool-call parsing rather than the model itself.
 
 ## Tooling and housekeeping

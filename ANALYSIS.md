@@ -63,18 +63,18 @@ Most cut-offs are on the hard problems, so not every cut-off answer would pass w
 
 Yes. These are in priority order, by value per GPU-hour:
 
-1. **Fix `backup-rotation` and re-run just that task.** The checker should reset `/work/backups` to its starting state before running the script, or ignore archives the model created. Re-running one task × 3 repeats × 10 models takes about an hour. Until then, read terminal-x3 as "out of 17".
+1. **Fix `backup-rotation` and re-run just that task.** The checker should reset `/work/backups` to its starting state before running the script. Re-running one task × 3 repeats × 10 models takes about an hour. Until then, read terminal-x3 as "out of 17". *(Fixed 2026-10-25; the re-run is queued.)*
 2. **Raise LiveCodeBench's `max_tokens` to 65,536** for the models with 7 or more cut-offs: nemotron-bolt, nemotron-lightning, qwen3.6, qwen3.8, ThinkingCap, flint and laguna.
-   - First make sure the context allows it. Each server has 4 slots, so unless the KV cache is shared, each slot gets `ctx-size / 4`. That's only 31,744 tokens for Laguna. For the rerun, use `--parallel 1`–`2` or a larger context.
+   - llama-server shares one KV cache across its 4 slots, so a single answer can use the whole context. But four 66k answers at once would overflow a 262k pool, so run 3 requests at a time. *(Queued as `livecodebench-64k`.)*
    - This is the experiment most likely to reorder the leaderboard. Expect qwen3.8/ThinkingCap and the Nemotrons to move toward Gemma and Flint.
 3. **Make terminal harder.** The top three models are at the ceiling.
    - Add longer-horizon tasks: multi-file refactors, debugging a failing test suite, tasks that need 20+ turns.
    - Or report `avg turns` and tokens per task alongside pass rate as the tie-breakers.
-4. **Re-run Strata on a clean GPU.** It loaded while another model's VRAM was still in use, and it peaked at 31.6 of 31.9 GiB. Its quality numbers are probably fine, but its speed numbers may be pessimistic.
+4. **Re-run Strata on a clean GPU.** *(Queued.)* It loaded while another model's VRAM was still in use, and it peaked at 31.6 of 31.9 GiB. Its quality numbers are probably fine, but its speed numbers may be pessimistic.
 5. **Compare ThinkingCap and its base on the same quant.** We have ThinkingCap at Q4_K_M and the base at UD-Q4_K_XL, so part of the 30% speed-up on terminal-x3 could come from the quant rather than the fine-tune.
 6. **Measure single-user server settings.** llama-swap runs every model with 4 slots. Generation drops from ~52 tok/s alone to ~15–20 tok/s per request with 4 in flight (qwen3.8). For one person driving one agent, `--parallel 1` gives each request the full context and maximum speed. Run `speed-concurrent` to put numbers on it.
 7. **Sample more LCB problems for the top contenders.** With 30 problems, the standard error is about ±9 points, so Gemma (73.3) vs. Flint/ThinkingCap (63.3) isn't a significant difference yet. 60–90 problems would settle the top five.
-8. **Benchmark `gemma-4-e4b`.** It's the `small` model in `claude-local`, so it handles background tasks every day, and it has never been measured. The quick profile is enough.
+8. **Benchmark `gemma-4-e4b`.** *(Queued.)* It's the `small` model in `claude-local`, so it handles background tasks every day, and it has never been measured. The quick profile is enough.
 
 Not worth the time: more HumanEval+ (every model scores 95–100%), and more runs of qwen3-coder-30b or Laguna.
 

@@ -98,12 +98,14 @@ class CodeSuite(Suite):
     """Base for code suites: subclasses provide problems, prompts and program assembly."""
     runner = RUNNER
 
-    def __init__(self, key, concurrency=None, max_tokens=16384, temperature=0.0, timeout_s=60,
+    def __init__(self, key, concurrency=None, max_tokens=16384, max_tokens_override=None, temperature=0.0, timeout_s=60,
                  sandbox="subprocess", docker_image="python:3.12-slim", system_prompt=None, limit=None,
                  **options):
         super().__init__(key, **options)
         self.concurrency = concurrency
         self.max_tokens = int(max_tokens)
+        # wins over the model's own max_tokens: for experiments like a bigger thinking budget
+        self.max_tokens_override = int(max_tokens_override) if max_tokens_override else None
         self.temperature = temperature
         self.timeout_s = float(timeout_s)
         self.sandbox = sandbox
@@ -168,7 +170,7 @@ class CodeSuite(Suite):
         if limit:
             problems = problems[: int(limit)]
         conc = int(self.concurrency or min(4, ctx.model_info.get("slots") or 1))
-        max_tokens = ctx.model.max_tokens or self.max_tokens
+        max_tokens = self.max_tokens_override or ctx.model.max_tokens or self.max_tokens
         sem = asyncio.Semaphore(conc)
         res = SuiteResult()
         rows: list[dict[str, Any]] = []

@@ -151,10 +151,11 @@ def cmd_dashboard(args):
 
     cfg = _cfg(args)
     root = Path(args.dir) if args.dir else cfg.base_dir / "dashboard"
-    rows = dashboard.build_rows(report.load_runs([cfg.results_dir]), hardware=args.hardware)
+    hardware = args.hardware or cfg.hardware   # one box/backend per dashboard; ROCm runs carry another label
+    rows = dashboard.build_rows(report.load_runs([cfg.results_dir]), hardware=hardware)
     out = dashboard.write_data(rows, root / "data")
     console.print(f"wrote {out} ({len(rows)} models)")
-    md = dashboard.write_markdown(rows, cfg.base_dir / "RESULTS.md", args.hardware or cfg.hardware)
+    md = dashboard.write_markdown(rows, cfg.base_dir / "RESULTS.md", hardware)
     console.print(f"wrote {md}")
     if args.serve:
         dashboard.serve(root, args.host, args.port)
@@ -195,7 +196,7 @@ def main(argv=None):
     d.add_argument("--serve", action="store_true", help="serve the dashboard over HTTP after rebuilding")
     d.add_argument("--host", default="127.0.0.1", help="bind address (0.0.0.0 to reach it from the LAN)")
     d.add_argument("--port", type=int, default=8765)
-    d.add_argument("--hardware", help="only results with this hardware label")
+    d.add_argument("--hardware", help="hardware label to show (default: `hardware:` in bench.yaml)")
     d.add_argument("--dir", help="dashboard directory (default: dashboard/ next to bench.yaml)")
     d.set_defaults(fn=cmd_dashboard)
 

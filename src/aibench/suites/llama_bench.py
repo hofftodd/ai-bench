@@ -2,7 +2,8 @@
 
 Independent of any server: no HTTP, sampling or scheduling overhead, so it's
 the cleanest way to compare GPUs / drivers / llama.cpp builds. Needs `gguf:` on
-the model, and the GPU should be otherwise idle (unload served models first).
+the model. The model's backend is released and the GPU emptied first, so a managed
+server is stopped: put llama-bench suites last in a run.
 """
 
 from __future__ import annotations
@@ -34,6 +35,9 @@ class LlamaBenchSuite(Suite):
     async def run(self, ctx: RunContext) -> SuiteResult:
         if not ctx.model.gguf:
             raise RuntimeError(f"model {ctx.model.key!r} has no `gguf:` path")
+        # the runner loaded the model to serve it; llama-bench loads its own copy, so free the GPU
+        await ctx.backend.release(ctx.model)
+        await ctx.backend.free_gpu(ctx.model)
         cmd = [self.binary, "-m", ctx.model.gguf, "-o", "json", "-r", str(self.repeats),
                "-p", ",".join(map(str, self.prompt_tokens)), "-n", ",".join(map(str, self.gen_tokens)),
                "-d", ",".join(map(str, self.depth)), *self.args]

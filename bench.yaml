@@ -30,14 +30,15 @@ backends:
     pre: ["curl -s http://localhost:8080/unload"]
     startup_timeout: 1800     # first start downloads the engine + model
 
-  # A llama.cpp build aibench starts itself: point `binary` at a ROCm/HIP build to
-  # compare against Vulkan on the same GGUFs (models need `gguf:`).
+  # The same llama.cpp release (b11850) built with HIP/ROCm, started by aibench, to compare
+  # ROCm against Vulkan on the same GGUFs. Flags match llama-swap's `server` macro; each
+  # *-rocm model below adds that model's own llama-swap flags (context, MTP drafter).
   llamacpp-rocm:
     type: llama-server
-    binary: ~/src/llama.cpp/build-rocm/bin/llama-server
+    binary: ~/src/llama.cpp-b11850/build-rocm/bin/llama-server
     port: 5898
-    args: [--n-gpu-layers, 99, --flash-attn, "on", --jinja, --ctx-size, 65536, --parallel, 4,
-           --cache-type-k, q8_0, --cache-type-v, q8_0]
+    args: [--n-gpu-layers, 99, --threads, 16, --flash-attn, auto, --jinja,
+           --cache-type-k, q8_0, --cache-type-v, q8_0, --device, ROCm0]
     pre: ["curl -s http://localhost:8080/unload"]
 
   ollama:
@@ -45,7 +46,7 @@ backends:
     base_url: http://localhost:11434
 
 models:
-  nemotron-lightning:
+  nemotron-lightning: &nemotron_lightning
     backend: swap
     id: nemotron-3.5-lightning-30b-a3b
     gguf: ~/models/nemotron-3.5-lightning-30b-a3b/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-UD-Q4_K_XL.gguf
@@ -61,7 +62,7 @@ models:
     params: {temperature: 1.0, top_p: 0.95}       # NVIDIA's recommended text sampling
 
   # Flint (Recursive's 40B-A2.5B coding MoE), Unsloth UD-Q4_K_XL, via llama-swap.
-  flint:
+  flint: &flint
     backend: swap
     id: flint
     gguf: ~/models/flint/flint-UD-Q4_K_XL.gguf
@@ -78,7 +79,7 @@ models:
     args: [--model, iq3_s, --context, 128k, --vision, "off", --tune, skip]
     max_tokens: 32768          # reasoning model, same budget as the others
 
-  qwen3.8-27b:
+  qwen3.8-27b: &qwen38_27b
     backend: swap
     id: qwen3.8-27b
     gguf: ~/models/qwen3.8-27b/Qwen3.8-27B-UD-Q4_K_XL.gguf
@@ -87,19 +88,19 @@ models:
   # ThinkingCap (bottlecapai): Qwen3.8-27B finetune that claims ~37% fewer reasoning tokens.
   # Card says to use the base model's thinking-mode sampling, so params match qwen3.8-27b.
   # Note the quant differs: Q4_K_M here vs UD-Q4_K_XL for the base.
-  thinkingcap-qwen3.8-27b:
+  thinkingcap-qwen3.8-27b: &thinkingcap_qwen38_27b
     backend: swap
     id: thinkingcap-qwen3.8-27b
     gguf: ~/models/thinkingcap-qwen3.8-27b/ThinkingCap-Qwen3.8-27B-Q4_K_M.gguf
     max_tokens: 32768
     params: {temperature: 0.6, top_p: 0.95, top_k: 20}
-  qwen3.6-35b-a3b:
+  qwen3.6-35b-a3b: &qwen36_35b_a3b
     backend: swap
     id: qwen3.6-35b-a3b
     gguf: ~/models/qwen3.6-35b-a3b/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf
     max_tokens: 32768
     params: {temperature: 0.6, top_p: 0.95, top_k: 20}
-  gemma-4-26b:
+  gemma-4-26b: &gemma_4_26b
     backend: swap
     id: gemma-4-26b-a4b
     gguf: ~/models/gemma-4-26b-a4b/gemma-4-26B-A4B-it-UD-Q6_K_XL.gguf
@@ -118,6 +119,40 @@ models:
     gguf: ~/models/laguna-xs-2.1/Laguna-XS-2.1-Q4_K_M.gguf
     max_tokens: 32768          # thinking on by default (enable_thinking: true)
     params: {temperature: 1.0, top_p: 1.0, top_k: 20, min_p: 0.0}   # poolside generation_config.json
+  # Gemma 4 E4B: the `small` model claude-local uses for background tasks.
+  gemma-4-e4b:
+    backend: swap
+    id: gemma-4-e4b
+    gguf: ~/models/gemma-4-e4b/gemma-4-E4B-it-Q4_K_M.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 64}   # Gemma defaults
+  # ROCm twins of the models above (same GGUF and sampling; flags from their llama-swap
+  # entries). Run with --hardware r9700-rocm so reports keep them apart from Vulkan.
+  qwen3.8-27b-rocm:
+    <<: *qwen38_27b
+    backend: llamacpp-rocm
+    args: [--ctx-size, 262144, --model-draft, ~/models/qwen3.8-27b/MTP/mtp-Qwen3.8-27B-Q4_0.gguf,
+           --spec-type, draft-mtp]
+  thinkingcap-qwen3.8-27b-rocm:
+    <<: *thinkingcap_qwen38_27b
+    backend: llamacpp-rocm
+    args: [--ctx-size, 262144, --spec-type, draft-mtp]
+  flint-rocm:
+    <<: *flint
+    backend: llamacpp-rocm
+    args: [--ctx-size, 262144]
+  qwen3.6-35b-a3b-rocm:
+    <<: *qwen36_35b_a3b
+    backend: llamacpp-rocm
+    args: [--ctx-size, 262144]
+  gemma-4-26b-rocm:
+    <<: *gemma_4_26b
+    backend: llamacpp-rocm
+    args: [--ctx-size, 262144]
+  nemotron-lightning-rocm:
+    <<: *nemotron_lightning
+    backend: llamacpp-rocm
+    args: [--ctx-size, 786432, --spec-type, draft-mtp]
   gpt-oss-20b:
     backend: swap
     id: gpt-oss-20b
@@ -182,12 +217,30 @@ suites:
     type: terminal            # from the model's ability (compare with `terminal`)
     tool_mode: text
     concurrency: 4
-  kernels:                    # raw llama.cpp speed on the GGUF, no server (GPU must be idle)
+  kernels:                    # raw llama.cpp speed on the GGUF, no server (unloads the GPU first)
     type: llama-bench
     binary: ~/.local/bin/llama-bench
     prompt_tokens: [512, 4096]
     gen_tokens: [128]
     args: [-ngl, 99, -fa, "on", -dev, Vulkan1]
+  kernels-rocm:               # the same on the HIP build of the same llama.cpp release
+    type: llama-bench
+    binary: ~/src/llama.cpp-b11850/build-rocm/bin/llama-bench
+    prompt_tokens: [512, 4096]
+    gen_tokens: [128]
+    args: [-ngl, 99, -fa, "on", -dev, ROCm0]
+  livecodebench-64k:          # same problems with twice the thinking budget (most 32k misses were cut off)
+    type: livecodebench
+    release: v6
+    sample: {medium: 15, hard: 15}
+    max_tokens_override: 65536
+    concurrency: 3            # 3 x ~66k fits the 262k shared KV pool; 4 would not
+  terminal-backup-rotation:   # re-run of the fixed backup-rotation task only
+    type: terminal
+    tasks: [backup-rotation]
+    repeats: 3
+    concurrency: 3
+    max_turns: 30
 
 profiles:
   quick: [speed-quick, humaneval-quick, terminal-quick]

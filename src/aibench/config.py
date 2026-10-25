@@ -97,7 +97,7 @@ def load_config(path: str | Path | None) -> Config:
             backend=m.get("backend", default_backend),
             id=m.get("id", key),
             gguf=_expand(m.get("gguf")),
-            args=[str(a) for a in m.get("args", [])],
+            args=[_expand(str(a)) for a in m.get("args", [])],
             params=m.get("params") or {},
             max_tokens=m.get("max_tokens"),
             notes=m.get("notes", ""),

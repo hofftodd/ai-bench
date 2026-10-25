@@ -24,8 +24,21 @@ setup: |
   echo "do not delete" > README.keep
   echo "manual" > data-manual-copy.tar.gz.txt
   sha256sum README.keep data-manual-copy.tar.gz.txt > /root/expected/others.sha256
+  mkdir -p /root/pristine/data && cp /work/data/notes.txt /root/pristine/data/
 verify: |
   [ -x /work/backup.sh ] || { echo "/work/backup.sh missing or not executable"; exit 1; }
+  # The instruction says "Test it", and testing leaves today-dated archives behind (and rotates
+  # old ones away). Restore the starting set of archives so only these two runs count.
+  cd /work/backups
+  rm -f data-[0-9]*-[0-9]*.tar.gz
+  n=0
+  for ts in 20231115-101010 20231231-235959 20240101-000000 20240102-120000 20240105-080000; do
+    tar czf "data-$ts.tar.gz" -C /root/pristine data/notes.txt
+    n=$((n+1)); touch -d "2024-02-0$((6-n)) 00:00" "data-$ts.tar.gz"
+  done
+  touch -d "2024-03-01 00:00" data-20231115-101010.tar.gz
+  chown agent:agent data-*.tar.gz
+  sleep 1.2
   cd /tmp
   runuser -u agent -- /work/backup.sh > /tmp/run1.log 2>&1 || { echo "first run failed:"; cat /tmp/run1.log; exit 1; }
   sleep 1.2
