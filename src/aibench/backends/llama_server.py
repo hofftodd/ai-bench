@@ -80,8 +80,11 @@ class ProcessBackend(OpenAIBackend):
                 pass
         return False
 
-    async def prepare(self, model: ModelSpec) -> dict[str, Any]:
+    async def free_gpu(self, model: ModelSpec) -> None:
+        # `pre:` usually empties llama-swap; run it here so the runner's VRAM baseline comes after it
         self._shell(self.pre, model)
+
+    async def prepare(self, model: ModelSpec) -> dict[str, Any]:
         if await self._healthy():
             raise RuntimeError(f"something is already serving on {self.base_url}; stop it or change `port:`")
         cmd = self.command(model)
