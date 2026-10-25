@@ -11,6 +11,7 @@ A queue started on 2026-10-25 runs these one at a time, once the Inkling downloa
 - [ ] **B. Re-run the fixed `backup-rotation` task** for all ten models (`terminal-backup-rotation` suite, `overnight-fix` tag, ~1 h). See the first caveat below.
 - [ ] **C. LiveCodeBench with a 64k thinking budget** (`livecodebench-64k` suite, `overnight-64k` tag, roughly 15–25 h). It covers qwen3.8, ThinkingCap, flint, gemma, qwen3.6 and both Nemotrons. It skips Strata and qwen3-coder (no cut-offs) and Laguna (recommended for retirement).
 - [ ] **D. Re-run Strata's overnight profile on a clean GPU** (~3 h).
+- [ ] **Then: download DeepSeek V4 Flash** (`unsloth/DeepSeek-V4-Flash-GGUF`, UD-Q2_K_XL, ~97 GB) into `~/models/deepseek-v4-flash/`. The detached `logs/after-queue.sh` starts the download when the queue finishes and logs to `logs/deepseek-download.log`. Until then it records the GPU's PCIe link every 5 minutes in `logs/pcie-link.log`. See [DeepSeek V4 Flash](#deepseek-v4-flash) below.
 
 Once results land, add the `livecodebench-64k` result and the corrected terminal-x3 score (with the new `backup-rotation` result) to the dashboard and RESULTS.md, and revise ANALYSIS.md.
 
@@ -24,6 +25,22 @@ Quality scores don't depend on the backend (same GGUF, same sampling), so only s
 - qwen3.8-27b-rocm and flint-rocm also run `humaneval-quick`. It's a check for a broken build, not a quality comparison.
 - Compare with `uv run aibench report --hardware r9700-vulkan --hardware r9700-rocm -s speed-quick -s kernels -s kernels-rocm`.
 - **If ROCm clearly wins,** move llama-swap's `server` macro to the ROCm build. Re-run quality suites only if outputs look different.
+
+### DeepSeek V4 Flash
+
+The 284B mixture-of-experts model that [DwarfStar](https://github.com/antirez/ds4) was built for. It's a candidate for the "hard problems" role that Strata holds now.
+
+- **Engine:** run it with llama.cpp, not DwarfStar. b11850 already supports the `deepseek4` architecture. DwarfStar's AMD support is Strix Halo-only: it needs more than 62 GB the GPU can address directly, and has no VRAM/RAM split for a 32 GB card.
+- **Version:** V4.1 Flash GGUFs (233 GB and up) don't fit this machine.
+- **Setup after the download:**
+  - Add a llama-swap entry with `--n-cpu-moe`, so attention runs in VRAM and about 65 GB of experts stay in RAM.
+  - Smoke-test it, then add `deepseek-v4-flash` to `bench.yaml` with DeepSeek's recommended sampling.
+  - Run `quick` and `overnight`.
+- **Expect** Strata-like speed (CPU-side experts). It can't be loaded alongside Strata.
+
+### PCIe link
+
+The R9700 sits behind a 4-lane link. The root port supports 16 GT/s, but it read 8 GT/s (PCIe 3.0, ~3.9 GB/s) while idle. If it stays there under load (`logs/pcie-link.log`), model loading and every RAM-offloaded model (Strata, Inkling, DeepSeek) are slower than they need to be. Check the BIOS or the OCuLink/riser settings.
 
 ## Blocked
 
