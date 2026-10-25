@@ -1,0 +1,103 @@
+name: fix-c-build
+difficulty: medium
+instruction: |
+  The C project in /work/cproj does not build: running `make` there fails. Fix the project so
+  that `make` builds the `wordfreq` program described in cproj/README.md, behaving as described.
+setup: |
+  mkdir -p /work/cproj && cd /work/cproj
+  cat > README.md <<'MD'
+  # wordfreq
+
+  Reads text on stdin and prints the N most frequent words (default N=3, or the first argument),
+  one per line as `<word> <count>`, most frequent first; ties are ordered alphabetically.
+  Words are runs of ASCII letters, compared case-insensitively and printed in lower case.
+
+      $ echo "The cat and the hat" | ./wordfreq 2
+      the 2
+      and 1
+  MD
+  printf 'CC = gcc\nCFLAGS = -O2 -Wall\n\nwordfreq: main.o counter.o\n    $(CC) $(CFLAGS) -o wordfreq main.o counter.o\n\n%%.o: %%.c counter.h\n\t$(CC) $(CFLAGS) -c $<\n\nclean:\n\trm -f wordfreq *.o\n' > Makefile
+  cat > counter.h <<'C'
+  #ifndef COUNTER_H
+  #define COUNTER_H
+
+  struct word_count {
+      char word[64];
+      int count;
+  };
+
+  /* Tallies the lower-cased words of text into out (at most max distinct words).
+     Returns the number of distinct words. */
+  int count_words(const char *text, struct word_count *out, int max);
+
+  #endif
+  C
+  cat > counter.c <<'C'
+  #include <ctype.h>
+  #include <string.h>
+  #include "counter.h"
+
+  int count_word(const char *text, struct word_count *out, int max) {
+      int n = 0, len = 0;
+      char buf[64];
+      for (const char *p = text;; p++) {
+          if (*p && isalpha((unsigned char)*p)) {
+              if (len < 63) buf[len++] = (char)tolower((unsigned char)*p);
+              continue;
+          }
+          if (len > 0) {
+              buf[len] = '\0';
+              int i;
+              for (i = 0; i < n; i++)
+                  if (strcmp(out[i].word, buf) == 0) { out[i].count++; break; }
+              if (i == n && n < max) { strcpy(out[n].word, buf); out[n].count = 1; n++; }
+              len = 0;
+          }
+          if (!*p) break;
+      }
+      return n;
+  }
+  C
+  cat > main.c <<'C'
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include "counter.h"
+
+  static int by_count(const void *a, const void *b) {
+      const struct word_count *x = a, *y = b;
+      if (x->count != y->count) return y->count - x->count;
+      return strcmp(x->word, y->word);
+  }
+
+  int main(int argc, char **argv) {
+      int top = argc > 1 ? atoi(argv[1]) : 3;
+      size_t cap = 1 << 16, len = 0, r;
+      char *text = malloc(cap);
+      while ((r = fread(text + len, 1, cap - len - 1, stdin)) > 0) {
+          len += r;
+          if (cap - len < 2) { cap *= 2; text = realloc(text, cap); }
+      }
+      text[len] = '\0';
+      static struct word_count words[4096];
+      int n = count_words(text, words, 4096);
+      qsort(words, n, sizeof words[0], by_count);
+      for (int i = 0; i < n && i < top; i++) printf("%s %d\n", words[i].word, words[i].count);
+      free(text);
+      return 0;
+  }
+  C
+verify: |
+  cd /work/cproj
+  rm -f wordfreq ./*.o
+  make > /tmp/build.log 2>&1 || { echo "make failed:"; tail -20 /tmp/build.log; exit 1; }
+  [ -x wordfreq ] || { echo "make did not produce ./wordfreq"; exit 1; }
+  got=$(printf 'The cat and the hat.\nTHE end, cat!' | ./wordfreq)
+  [ "$got" = "$(printf 'the 3\ncat 2\nand 1')" ] || { echo "wrong output for default N: $got"; exit 1; }
+  got=$(printf 'b a c b a b' | ./wordfreq 5)
+  [ "$got" = "$(printf 'b 3\na 2\nc 1')" ] || { echo "wrong output for N=5: $got"; exit 1; }
+solution: |
+  cd cproj
+  sed -i 's/^    \$(CC)/\t$(CC)/' Makefile
+  sed -i 's/int count_word(/int count_words(/' counter.c
+  sed -i 's/#include <stdlib.h>/#include <stdlib.h>\n#include <string.h>/' main.c
+  make

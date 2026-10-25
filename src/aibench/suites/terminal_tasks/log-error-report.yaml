@@ -1,0 +1,35 @@
+name: log-error-report
+difficulty: easy
+instruction: |
+  logs/app.log contains application logs, one entry per line in the form
+  `<timestamp> <LEVEL> [<service>] <message>`.
+
+  Create /work/report.txt listing every service that has at least one entry with level ERROR,
+  one per line as `<service> <count>` (count = number of ERROR entries), sorted by count
+  descending, ties broken by service name ascending.
+setup: |
+  mkdir -p /work/logs
+  python3 - <<'PY'
+  import random
+  r = random.Random(7)
+  svcs, weights = ["auth", "billing", "search", "api", "worker", "mailer"], [5, 3, 4, 6, 2, 1]
+  msgs = ["request handled", "timeout talking to db", "user login", "cache miss", "ERROR budget ok", "retrying"]
+  lines, cnt = [], {}
+  for i in range(3000):
+      s = r.choices(svcs, weights)[0]
+      lvl = r.choices(["INFO", "WARN", "ERROR", "DEBUG"], [60, 20, 12, 8])[0]
+      if s == "mailer":
+          lvl = r.choice(["INFO", "DEBUG"])
+      ts = f"2026-10-{1 + i // 200:02d}T{i % 24:02d}:{i % 60:02d}:{(i * 7) % 60:02d}Z"
+      lines.append(f"{ts} {lvl} [{s}] {r.choice(msgs)}")
+      if lvl == "ERROR":
+          cnt[s] = cnt.get(s, 0) + 1
+  open("/work/logs/app.log", "w").write("\n".join(lines) + "\n")
+  exp = sorted(cnt.items(), key=lambda kv: (-kv[1], kv[0]))
+  open("/root/expected/report.txt", "w").write("".join(f"{k} {v}\n" for k, v in exp))
+  PY
+verify: |
+  python3 /root/check.py lines /work/report.txt /root/expected/report.txt
+solution: |
+  awk '$2=="ERROR"{s=$3; gsub(/[][]/,"",s); c[s]++} END{for(k in c) print k, c[k]}' logs/app.log \
+    | sort -k2,2nr -k1,1 > report.txt

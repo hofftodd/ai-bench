@@ -1,0 +1,31 @@
+name: nested-archive
+difficulty: easy
+instruction: |
+  /work/package.b64 is a base64-encoded archive. Somewhere inside it, possibly nested inside
+  other archives, is a file named exactly `secret.txt`. Write its contents (a token) to
+  /work/token.txt.
+setup: |
+  python3 - <<'PY'
+  import base64, io, os, random, tarfile, zipfile
+  r = random.Random(5)
+  token = "tok-" + r.randbytes(12).hex()
+  zbuf = io.BytesIO()
+  with zipfile.ZipFile(zbuf, "w") as z:
+      z.writestr("vault/notes.md", "nothing to see here\n")
+      z.writestr("vault/deep/secret.txt", token + "\n")
+  tbuf = io.BytesIO()
+  with tarfile.open(fileobj=tbuf, mode="w:gz") as t:
+      def add(name, data):
+          info = tarfile.TarInfo(name); info.size = len(data); t.addfile(info, io.BytesIO(data))
+      add("pkg/README", b"release bundle\n")
+      add("pkg/secret.txt.bak", b"tok-0000000000000000decoy\n")
+      add("pkg/old-secret.txt", b"tok-1111111111111111decoy\n")
+      add("pkg/inner/bundle.zip", zbuf.getvalue())
+  open("/work/package.b64", "w").write(base64.encodebytes(tbuf.getvalue()).decode())
+  open("/root/expected/token.txt", "w").write(token + "\n")
+  PY
+verify: |
+  python3 /root/check.py lines /work/token.txt /root/expected/token.txt
+solution: |
+  mkdir -p /tmp/x && cd /tmp/x && base64 -d /work/package.b64 > p.tgz && tar xzf p.tgz \
+    && unzip -q pkg/inner/bundle.zip -d z && cp z/vault/deep/secret.txt /work/token.txt

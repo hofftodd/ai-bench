@@ -1,0 +1,99 @@
+name: merge-conflict
+difficulty: hard
+instruction: |
+  In /work/repo, merge the branch `feature` into `main` (a real merge commit, not a rebase or
+  squash). The merge conflicts; resolve it so that both branches' intentions are kept:
+  `main` made apply_discount raise ValueError for negative prices, and `feature` made it clamp
+  the percentage into the range 0-100. Run the tests with `python3 -m unittest` in the repo;
+  commit the merge on main.
+setup: |
+  mkdir -p /work/repo && cd /work/repo
+  git init -q -b main
+  cat > calc.py <<'PY'
+  def apply_discount(price, pct):
+      return round(price * (1 - pct / 100), 2)
+
+
+  def shipping(weight):
+      return 5.0 if weight < 1 else 5.0 + (weight - 1) * 2.0
+  PY
+  cat > test_calc.py <<'PY'
+  import unittest
+  from calc import apply_discount, shipping
+
+
+  class CalcTest(unittest.TestCase):
+      def test_discount(self):
+          self.assertEqual(apply_discount(200, 25), 150.0)
+
+      def test_shipping(self):
+          self.assertEqual(shipping(3), 9.0)
+
+
+  if __name__ == "__main__":
+      unittest.main()
+  PY
+  git add -A; git commit -qm "calc module"
+  git checkout -qb feature
+  cat > calc.py <<'PY'
+  def apply_discount(price, pct):
+      pct = max(0, min(pct, 100))
+      return round(price * (1 - pct / 100), 2)
+
+
+  def shipping(weight):
+      return 5.0 if weight < 1 else 5.0 + (weight - 1) * 2.0
+  PY
+  git commit -qam "clamp discount percentage"
+  git rev-parse HEAD > /root/expected/feature
+  git checkout -q main
+  cat > calc.py <<'PY'
+  def apply_discount(price, pct):
+      if price < 0:
+          raise ValueError("price must be non-negative")
+      return round(price * (1 - pct / 100), 2)
+
+
+  def shipping(weight):
+      return 5.0 if weight < 1 else 5.0 + (weight - 1) * 2.0
+  PY
+  git commit -qam "reject negative prices"
+  git rev-parse HEAD > /root/expected/main
+  cat > /root/expected/hidden_test.py <<'PY'
+  import sys
+  sys.path.insert(0, "/work/repo")
+  from calc import apply_discount, shipping
+  assert apply_discount(200, 25) == 150.0
+  assert apply_discount(100, 150) == 0.0, apply_discount(100, 150)
+  assert apply_discount(100, -20) == 100.0, apply_discount(100, -20)
+  try:
+      apply_discount(-1, 10)
+  except ValueError:
+      pass
+  else:
+      raise AssertionError("negative price accepted")
+  assert shipping(0.5) == 5.0 and shipping(3) == 9.0
+  PY
+verify: |
+  cd /work/repo
+  [ "$(git rev-parse --abbrev-ref HEAD)" = main ] || { echo "not on main"; exit 1; }
+  [ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "uncommitted changes / unfinished merge"; exit 1; }
+  parents=$(git rev-list --parents -n1 HEAD | cut -d' ' -f2-)
+  [ "$parents" = "$(cat /root/expected/main) $(cat /root/expected/feature)" ] || { echo "HEAD is not a merge of main and feature (parents: $parents)"; exit 1; }
+  if git grep -nE '^(<<<<<<<|=======|>>>>>>>)' HEAD -- .; then echo "conflict markers committed"; exit 1; fi
+  python3 /root/expected/hidden_test.py
+solution: |
+  cd repo
+  git merge feature >/dev/null 2>&1 || true
+  cat > calc.py <<'PY'
+  def apply_discount(price, pct):
+      if price < 0:
+          raise ValueError("price must be non-negative")
+      pct = max(0, min(pct, 100))
+      return round(price * (1 - pct / 100), 2)
+
+
+  def shipping(weight):
+      return 5.0 if weight < 1 else 5.0 + (weight - 1) * 2.0
+  PY
+  git add calc.py && git commit -qm "Merge branch 'feature'"

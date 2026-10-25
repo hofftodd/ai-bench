@@ -1,0 +1,63 @@
+name: rename-function
+difficulty: medium
+instruction: |
+  Rename the function `get_user_data` to `fetch_user` throughout the Python package in
+  /work/src: its definition and every reference to it. Do not change anything under
+  /work/vendor, and do not rename other functions whose names merely start with
+  `get_user_data`. Afterwards `cd /work && python3 -m src.main` must still run and print exactly
+  the same output as before.
+setup: |
+  mkdir -p /work/src /work/vendor
+  cd /work
+  touch src/__init__.py
+  cat > src/users.py <<'PY'
+  _DB = {1: {"name": "ada", "plan": "pro"}, 2: {"name": "linus", "plan": "free"}}
+  _CACHE = {}
+
+
+  def get_user_data(uid):
+      """Look a user up in the database."""
+      return dict(_DB[uid])
+
+
+  def get_user_data_cached(uid):
+      if uid not in _CACHE:
+          _CACHE[uid] = get_user_data(uid)
+      return _CACHE[uid]
+  PY
+  cat > src/report.py <<'PY'
+  from .users import get_user_data, get_user_data_cached
+
+
+  def summary(uids):
+      # get_user_data is the uncached path
+      rows = [get_user_data(u) for u in uids]
+      cached = get_user_data_cached(uids[0])
+      return f"{len(rows)} users, first={cached['name']}, plans={','.join(r['plan'] for r in rows)}"
+  PY
+  cat > src/main.py <<'PY'
+  from . import users
+  from .report import summary
+
+  handler = users.get_user_data
+  print(summary([1, 2]))
+  print(handler(2)["name"], users.get_user_data_cached(1)["plan"])
+  PY
+  cat > vendor/legacy_client.py <<'PY'
+  def get_user_data(uid):
+      raise NotImplementedError("legacy API")
+  PY
+  python3 -m src.main > /root/expected/main.out
+  rm -rf src/__pycache__
+  find vendor -type f -exec sha256sum {} + > /root/expected/vendor.sha256
+verify: |
+  cd /work
+  sha256sum -c --quiet /root/expected/vendor.sha256 || { echo "vendor/ was modified"; exit 1; }
+  [ "$(find vendor -type f | wc -l)" = "$(wc -l < /root/expected/vendor.sha256)" ] || { echo "files added to vendor/"; exit 1; }
+  if grep -rnw --include='*.py' get_user_data src; then echo "src/ still references get_user_data"; exit 1; fi
+  grep -q 'def fetch_user(' src/users.py || { echo "fetch_user is not defined in src/users.py"; exit 1; }
+  grep -q 'def get_user_data_cached(' src/users.py || { echo "get_user_data_cached was renamed or removed"; exit 1; }
+  out=$(runuser -u agent -- python3 -m src.main 2>&1) || { echo "src.main failed: $out"; exit 1; }
+  [ "$out" = "$(cat /root/expected/main.out)" ] || { echo "output changed: $out"; exit 1; }
+solution: |
+  grep -rlw --include='*.py' get_user_data src | xargs sed -i 's/\bget_user_data\b/fetch_user/g'

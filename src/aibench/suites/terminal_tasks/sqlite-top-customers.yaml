@@ -1,0 +1,49 @@
+name: sqlite-top-customers
+difficulty: medium
+instruction: |
+  /work/shop.db is a SQLite database for a small shop. Write the names of the 3 customers with
+  the highest total spend to /work/top_customers.txt, one name per line, highest first.
+  A customer's total spend is the sum of quantity * unit_price over all items of all their
+  orders, excluding orders whose status is 'cancelled'.
+setup: |
+  python3 - <<'PY'
+  import random, sqlite3
+  r = random.Random(21)
+  db = sqlite3.connect("/work/shop.db")
+  db.executescript("""
+  CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, email TEXT);
+  CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER REFERENCES customers(id), status TEXT, created_at TEXT);
+  CREATE TABLE order_items (order_id INTEGER REFERENCES orders(id), sku TEXT, quantity INTEGER, unit_price REAL);
+  """)
+  names = ["Ada Lovelace", "Grace Hopper", "Alan Turing", "Edsger Dijkstra", "Barbara Liskov", "Ken Thompson",
+           "Margaret Hamilton", "Donald Knuth", "Frances Allen", "Dennis Ritchie", "Radia Perlman", "John Backus"]
+  for i, n in enumerate(names, 1):
+      db.execute("INSERT INTO customers VALUES (?,?,?)", (i, n, n.split()[0].lower() + "@example.com"))
+  spend = {i: 0.0 for i in range(1, len(names) + 1)}
+  oid = 0
+  for _ in range(300):
+      oid += 1
+      cid = r.randint(1, len(names))
+      status = r.choices(["paid", "shipped", "cancelled", "refund_requested"], [5, 5, 2, 1])[0]
+      db.execute("INSERT INTO orders VALUES (?,?,?,?)", (oid, cid, status, f"2026-0{r.randint(1, 9)}-1{r.randint(0, 9)}"))
+      for _ in range(r.randint(1, 4)):
+          q, p = r.randint(1, 5), round(r.uniform(2, 120), 2)
+          db.execute("INSERT INTO order_items VALUES (?,?,?,?)", (oid, f"SKU-{r.randint(100, 999)}", q, p))
+          if status != "cancelled":
+              spend[cid] += q * p
+  # A whale whose only big order was cancelled: wrong if cancelled orders are counted.
+  low = min(spend, key=spend.get)
+  oid += 1
+  db.execute("INSERT INTO orders VALUES (?,?,?,?)", (oid, low, "cancelled", "2026-09-30"))
+  db.execute("INSERT INTO order_items VALUES (?,?,?,?)", (oid, "SKU-WHALE", 50, 199.0))
+  db.commit()
+  ranked = sorted(spend, key=spend.get, reverse=True)
+  assert spend[ranked[2]] - spend[ranked[3]] > 1, "tie risk"
+  open("/root/expected/top.txt", "w").write("".join(names[c - 1] + "\n" for c in ranked[:3]))
+  PY
+verify: |
+  python3 /root/check.py lines /work/top_customers.txt /root/expected/top.txt
+solution: |
+  sqlite3 shop.db "SELECT c.name FROM customers c JOIN orders o ON o.customer_id = c.id
+    JOIN order_items i ON i.order_id = o.id WHERE o.status != 'cancelled'
+    GROUP BY c.id ORDER BY SUM(i.quantity * i.unit_price) DESC LIMIT 3" > top_customers.txt

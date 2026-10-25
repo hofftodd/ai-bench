@@ -1,0 +1,32 @@
+name: ssh-ban
+difficulty: easy
+instruction: |
+  Analyse /work/auth.log, an sshd log. Write /work/ban.txt containing every IP address that has
+  5 or more "Failed password" attempts, one per line, sorted in numeric IP order
+  (so 10.0.0.9 comes before 10.0.0.10).
+setup: |
+  python3 - <<'PY'
+  import random
+  r = random.Random(9)
+  fails = {"203.0.113.7": 12, "10.0.0.9": 6, "10.0.0.10": 5, "192.168.1.100": 5, "198.51.100.23": 4,
+           "10.0.0.100": 7, "172.16.5.4": 1, "2.2.2.2": 9, "100.64.0.1": 3}
+  lines = []
+  for ip, n in fails.items():
+      for _ in range(n):
+          user = r.choice(["root", "admin", "invalid user oracle", "invalid user test", "deploy"])
+          lines.append(f"sshd[{r.randint(1000, 9999)}]: Failed password for {user} from {ip} port {r.randint(20000, 65000)} ssh2")
+  for ip in ["10.0.0.9", "192.168.1.5", "198.51.100.23"] * 3:
+      lines.append(f"sshd[{r.randint(1000, 9999)}]: Accepted password for deploy from {ip} port {r.randint(20000, 65000)} ssh2")
+  for ip in ["198.51.100.23", "172.16.5.4"] * 4:
+      lines.append(f"sshd[{r.randint(1000, 9999)}]: Connection closed by authenticating user root {ip} port 22 [preauth]")
+  r.shuffle(lines)
+  out = [f"Oct {r.randint(10, 20)} {r.randint(0, 23):02d}:{r.randint(0, 59):02d}:{r.randint(0, 59):02d} host {l}" for l in lines]
+  open("/work/auth.log", "w").write("\n".join(out) + "\n")
+  ban = sorted((ip for ip, n in fails.items() if n >= 5), key=lambda s: tuple(map(int, s.split("."))))
+  open("/root/expected/ban.txt", "w").write("\n".join(ban) + "\n")
+  PY
+verify: |
+  python3 /root/check.py lines /work/ban.txt /root/expected/ban.txt
+solution: |
+  grep -oP 'Failed password .* from \K[0-9.]+' auth.log | sort | uniq -c | awk '$1>=5{print $2}' \
+    | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n > ban.txt

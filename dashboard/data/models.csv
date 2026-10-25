@@ -1,0 +1,11 @@
+model,backend,overnight_order,overnight_status,lcb_truncated,terminal_x3_pass_pct,lcb_pass_pct,terminal_x3_wall_min,lcb_wall_min,humaneval_quick_pass_pct,humaneval_quick_plus_pct,terminal_quick_pass_pct,pp512_tok_s,tg512_tok_s,pp8k_tok_s,tg8k_tok_s,ttft8k_s,terminal_x3_episodes,lcb_problems
+nemotron-lightning,swap,1,done,16,70.4,50,19.0,101,100,97.5,83.3,1460,126,3023,131,2.85,54,30
+nemotron-bolt,swap,2,done,17,87.0,46.7,85.2,137,100,97.5,100,563,53.6,1093,45.7,7.84,54,30
+flint,swap,3,done,7,88.9,63.3,43.8,77.6,100,97.5,83.3,2649,83.0,3391,79.3,2.54,54,30
+strata,strata,4,done,0,94.4,83.3,49.0,118,95,95,100,158,63.5,780,67.8,10.5,54,30
+qwen3.8-27b,swap,5,done,12,94.4,56.7,25.1,181,100,97.5,100,476,69.1,907,52.5,9.46,54,30
+qwen3.6-35b-a3b,swap,6,done,16,79.6,50,11.3,104,97.5,95,66.7,2089,97.3,3559,95.1,2.46,54,30
+gemma-4-26b,swap,7,done,2,87.0,73.3,80.0,69.3,100,97.5,83.3,2032,81.5,3482,76.0,2.60,54,30
+qwen3-coder-30b,swap,8,done,0,51.9,10,23.0,20.7,100,97.5,66.7,3634,127,3288,109,2.68,54,30
+thinkingcap-qwen3.8-27b,swap,9,done,11,92.6,63.3,17.5,158,,,,,,,,,54,30
+laguna-xs-2.1,swap,10,done,7,74.1,33.3,33.8,88.8,,,,,,,,,54,30

@@ -1,0 +1,37 @@
+name: json-config
+difficulty: medium
+instruction: |
+  Update /work/config.json:
+  - set server.port to 8443
+  - set server.tls.enabled to true
+  - add "metrics" to the features list (only if it is not already there)
+  - remove every key named legacy_mode, wherever it appears in the document (at any depth)
+  Keep everything else unchanged. The file must remain valid JSON.
+setup: |
+  cat > /work/config.json <<'JSON'
+  {
+    "service": "api",
+    "server": {"host": "0.0.0.0", "port": 8080, "legacy_mode": true,
+               "tls": {"enabled": false, "cert": "/etc/ssl/api.pem"}},
+    "features": ["search", "export"],
+    "legacy_mode": false,
+    "database": {"url": "postgres://db/app", "pool": {"size": 10, "legacy_mode": "compat"}},
+    "logging": {"level": "info", "sinks": [{"type": "file", "legacy_mode": 1}, {"type": "stdout"}]}
+  }
+  JSON
+  cat > /root/expected/config.json <<'JSON'
+  {
+    "service": "api",
+    "server": {"host": "0.0.0.0", "port": 8443, "tls": {"enabled": true, "cert": "/etc/ssl/api.pem"}},
+    "features": ["search", "export", "metrics"],
+    "database": {"url": "postgres://db/app", "pool": {"size": 10}},
+    "logging": {"level": "info", "sinks": [{"type": "file"}, {"type": "stdout"}]}
+  }
+  JSON
+verify: |
+  python3 /root/check.py json /work/config.json /root/expected/config.json
+solution: |
+  jq 'walk(if type == "object" then del(.legacy_mode) else . end)
+      | .server.port = 8443 | .server.tls.enabled = true
+      | if (.features | index("metrics")) then . else .features += ["metrics"] end' config.json > /tmp/c.json \
+    && cp /tmp/c.json config.json

@@ -1,0 +1,48 @@
+name: organize-photos
+difficulty: medium
+instruction: |
+  Organize /work/photos: every file directly inside photos/ whose name matches
+  IMG_YYYYMMDD_NNNN.jpg (YYYYMMDD is a date, NNNN is four digits) must be moved into
+  photos/YYYY/MM/, keeping its file name. For example photos/IMG_20240315_0001.jpg becomes
+  photos/2024/03/IMG_20240315_0001.jpg. Leave all other files exactly where they are.
+setup: |
+  python3 - <<'PY'
+  import hashlib, json, os, random
+  r = random.Random(13)
+  os.makedirs("/work/photos/old", exist_ok=True)
+  exp = {}
+  def put(name, dest):
+      data = r.randbytes(r.randint(200, 4000))
+      open(f"/work/photos/{name}", "wb").write(data)
+      exp[dest] = hashlib.sha256(data).hexdigest()
+  for i in range(40):
+      y, m, d = r.choice([2022, 2023, 2024]), r.randint(1, 12), r.randint(1, 28)
+      name = f"IMG_{y}{m:02d}{d:02d}_{r.randint(0, 9999):04d}.jpg"
+      if f"{y}/{m:02d}/{name}" not in exp:
+          put(name, f"{y}/{m:02d}/{name}")
+  for name in ["IMG_2024_0315.jpg", "VID_20240101_0001.mp4", "notes.txt", "IMG_20240315_01.jpg",
+               "IMG_20231201_0042.jpg.bak", "IMG_20240229_0007.png", "old/IMG_20210101_0001.jpg"]:
+      put(name, name)
+  json.dump(exp, open("/root/expected/photos.json", "w"))
+  PY
+verify: |
+  python3 - <<'PY'
+  import hashlib, json, os, sys
+  exp = json.load(open("/root/expected/photos.json"))
+  got = {}
+  for root, _, files in os.walk("/work/photos"):
+      for f in files:
+          p = os.path.join(root, f)
+          got[os.path.relpath(p, "/work/photos")] = hashlib.sha256(open(p, "rb").read()).hexdigest()
+  missing = sorted(set(exp) - set(got)); extra = sorted(set(got) - set(exp))
+  wrong = sorted(k for k in set(exp) & set(got) if exp[k] != got[k])
+  if missing or extra or wrong:
+      sys.exit(f"missing: {missing[:8]}\nunexpected: {extra[:8]}\ncontent changed: {wrong[:8]}")
+  PY
+solution: |
+  cd photos
+  for f in IMG_*.jpg; do
+    if [[ $f =~ ^IMG_([0-9]{4})([0-9]{2})[0-9]{2}_[0-9]{4}\.jpg$ ]]; then
+      mkdir -p "${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" && mv "$f" "${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/"
+    fi
+  done

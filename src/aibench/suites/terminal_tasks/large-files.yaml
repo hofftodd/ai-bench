@@ -1,0 +1,32 @@
+name: large-files
+difficulty: easy
+instruction: |
+  List every regular file under /work/data that is larger than 1 MiB (1048576 bytes).
+  Write their paths relative to /work (for example `data/a/b.bin`) to /work/large_files.txt,
+  one per line, sorted in byte order (as `LC_ALL=C sort` would).
+setup: |
+  python3 - <<'PY'
+  import os, random
+  r = random.Random(11)
+  big = []
+  def write(path, size):
+      os.makedirs(os.path.dirname(path), exist_ok=True)
+      with open(path, "wb") as f:
+          f.write(r.randbytes(size))
+      if size > 1048576:
+          big.append(os.path.relpath(path, "/work"))
+  for i in range(40):
+      d = r.choice(["data", "data/logs", "data/a/b", "data/cache", "data/media"])
+      write(f"/work/{d}/file{i:02d}.dat", r.choice([100, 5000, 200000, 900000]))
+  write("/work/data/media/clip one.mp4", 3 * 1048576)
+  write("/work/data/a/b/c/deep.iso", 2 * 1048576 + 1)
+  write("/work/data/exact.bin", 1048576)
+  write("/work/data/just-over.bin", 1048577)
+  write("/work/data/cache/Big Backup.tar", 1500000)
+  os.symlink("media/clip one.mp4", "/work/data/link-to-clip")
+  open("/root/expected/large.txt", "w").write("".join(p + "\n" for p in sorted(big)))
+  PY
+verify: |
+  python3 /root/check.py lines /work/large_files.txt /root/expected/large.txt
+solution: |
+  find data -type f -size +1048576c | LC_ALL=C sort > large_files.txt

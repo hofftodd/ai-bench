@@ -1,0 +1,98 @@
+/* Design tokens page.html uses. On claude.ai the Dashboard type supplies these;
+   locally this file does, in light and dark. */
+:root {
+  color-scheme: light;
+  --font-anthropic-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-anthropic-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+
+  --color-fg: #1f1e1d;
+  --color-fg-muted: #6b6a66;
+  --color-bg: #faf9f5;
+  --color-panel: #ffffff;
+  --color-border-line: #e6e3da;
+  --color-ok: #2f7d4f;
+  --color-warn: #b26a00;
+  --color-bad: #c0392b;
+
+  --dash-series-0: #3b6fd4;
+  --dash-series-1: #d4793b;
+  --dash-series-2: #3ba68a;
+  --dash-series-3: #a65bc7;
+  --dash-series-4: #c7a83b;
+  --dash-series-5: #c75b7a;
+  --dash-series-6: #5bb0c7;
+  --dash-series-7: #7a7a7a;
+
+  --cds-gap-xs: 0.25rem;
+  --cds-gap-sm: 0.5rem;
+  --cds-gap-md: 1rem;
+  --cds-gap-lg: 1.5rem;
+  --cds-pad-xs: 0.25rem;
+  --cds-pad-sm: 0.5rem;
+  --cds-pad-lg: 1.25rem;
+  --cds-radius: 0.5rem;
+  --cds-font-size-title: 2rem;
+  --cds-font-size-heading: 1.0625rem;
+  --cds-font-size-body: 0.875rem;
+  --cds-font-size-caption: 0.75rem;
+  --cds-font-weight-medium: 550;
+  --cds-surface-popover: var(--color-panel);
+  --cds-border: var(--color-border-line);
+  --cds-shadow-popover: 0 4px 16px rgb(0 0 0 / 0.12);
+  --cds-text-secondary: var(--color-fg-muted);
+  --cds-chart-grid: #ebe8df;
+  --cds-dur-slow: 300ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-fg: #ecebe6;
+    --color-fg-muted: #a3a29c;
+    --color-bg: #1c1b19;
+    --color-panel: #262523;
+    --color-border-line: #3a3936;
+    --color-ok: #5cbf83;
+    --color-warn: #e0a040;
+    --color-bad: #e5675a;
+    --dash-series-0: #7aa2f0;
+    --dash-series-1: #f0a272;
+    --cds-shadow-popover: 0 4px 16px rgb(0 0 0 / 0.5);
+    --cds-chart-grid: #34332f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-fg: #ecebe6;
+  --color-fg-muted: #a3a29c;
+  --color-bg: #1c1b19;
+  --color-panel: #262523;
+  --color-border-line: #3a3936;
+  --color-ok: #5cbf83;
+  --color-warn: #e0a040;
+  --color-bad: #e5675a;
+  --dash-series-0: #7aa2f0;
+  --dash-series-1: #f0a272;
+  --cds-shadow-popover: 0 4px 16px rgb(0 0 0 / 0.5);
+  --cds-chart-grid: #34332f;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-anthropic-sans);
+}
+.shell { max-width: 80rem; margin: 0 auto; padding: 1rem 1rem 3rem; }
+.shell-bar {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem;
+  font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin-bottom: 1.25rem;
+}
+.shell-actions { display: inline-flex; gap: 0.75rem; align-items: center; }
+.shell-bar a { color: inherit; }
+.shell-bar button {
+  font: inherit; color: inherit; background: none; cursor: pointer;
+  border: 1px solid var(--color-border-line); border-radius: 999px; padding: 0.125rem 0.625rem;
+}
+.dash-skeleton { color: transparent !important; background: var(--color-border-line); border-radius: 4px; }

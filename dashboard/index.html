@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R9700 model bench</title>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="shell">
+  <div class="shell-bar">
+    <span id="updated">Loading…</span>
+    <span class="shell-actions">
+      <button type="button" id="theme-toggle" aria-label="Toggle light or dark theme">Theme</button>
+      <a href="data/models.csv" download>models.csv</a>
+    </span>
+  </div>
+  <div id="dash-root"></div>
+</div>
+
+<script src="vendor/d3.v7.9.0.min.js"></script>
+<script>
+// Datasets the page reads, by id. `aibench dashboard` writes these files.
+window.DASH_DATASETS = { models: 'data/models.csv' };
+</script>
+<script src="dash-local.js"></script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+name: backup-rotation
+difficulty: hard
+instruction: |
+  Write an executable bash script /work/backup.sh. Each time it runs it must:
+  1. create a gzip-compressed tar archive of the directory /work/data, saved as
+     /work/backups/data-YYYYmmdd-HHMMSS.tar.gz using the current local time; inside the archive
+     paths must start with `data/` (for example `data/notes.txt`);
+  2. then delete older archives so that only the 3 most recent data-YYYYmmdd-HHMMSS.tar.gz
+     files remain in /work/backups, where "most recent" means the latest timestamp in the file
+     name (not the file's modification time).
+  It must not delete or modify any other files in /work/backups, and it must work no matter
+  which directory it is run from. Test it.
+setup: |
+  mkdir -p /work/data/sub /work/backups
+  echo "important notes" > /work/data/notes.txt
+  printf 'a,b\n1,2\n' > /work/data/sub/x.csv
+  cd /work/backups
+  n=0
+  for ts in 20231115-101010 20231231-235959 20240101-000000 20240102-120000 20240105-080000; do
+    tar czf "data-$ts.tar.gz" -C /work data/notes.txt
+    n=$((n+1)); touch -d "2024-02-0$((6-n)) 00:00" "data-$ts.tar.gz"
+  done
+  touch -d "2024-03-01 00:00" data-20231115-101010.tar.gz
+  echo "do not delete" > README.keep
+  echo "manual" > data-manual-copy.tar.gz.txt
+  sha256sum README.keep data-manual-copy.tar.gz.txt > /root/expected/others.sha256
+verify: |
+  [ -x /work/backup.sh ] || { echo "/work/backup.sh missing or not executable"; exit 1; }
+  cd /tmp
+  runuser -u agent -- /work/backup.sh > /tmp/run1.log 2>&1 || { echo "first run failed:"; cat /tmp/run1.log; exit 1; }
+  sleep 1.2
+  cd /
+  runuser -u agent -- /work/backup.sh > /tmp/run2.log 2>&1 || { echo "second run failed:"; cat /tmp/run2.log; exit 1; }
+  cd /work/backups
+  sha256sum -c --quiet /root/expected/others.sha256 || { echo "other files in backups/ were changed or deleted"; exit 1; }
+  today=$(date +%Y%m%d)
+  mapfile -t left < <(ls | grep -E '^data-[0-9]{8}-[0-9]{6}\.tar\.gz$' | sort)
+  [ "${#left[@]}" = 3 ] || { echo "expected 3 archives, found: ${left[*]}"; exit 1; }
+  [ "${left[0]}" = data-20240105-080000.tar.gz ] || { echo "wrong archives kept: ${left[*]}"; exit 1; }
+  [[ ${left[1]} == data-$today-* && ${left[2]} == data-$today-* ]] || { echo "new archives missing: ${left[*]}"; exit 1; }
+  tar tzf "${left[2]}" | grep -qx 'data/notes.txt' || { echo "archive lacks data/notes.txt: $(tar tzf "${left[2]}" | head)"; exit 1; }
+  tar tzf "${left[2]}" | grep -qx 'data/sub/x.csv' || { echo "archive lacks data/sub/x.csv"; exit 1; }
+  [ "$(ls | wc -l)" = 5 ] || { echo "unexpected files in backups/: $(ls)"; exit 1; }
+solution: |
+  cat > backup.sh <<'SH'
+  #!/bin/bash
+  set -euo pipefail
+  dir=/work/backups
+  mkdir -p "$dir"
+  tar czf "$dir/data-$(date +%Y%m%d-%H%M%S).tar.gz" -C /work data
+  ls "$dir" | grep -E '^data-[0-9]{8}-[0-9]{6}\.tar\.gz$' | sort -r | tail -n +4 | while read -r f; do rm -f "$dir/$f"; done
+  SH
+  chmod +x backup.sh

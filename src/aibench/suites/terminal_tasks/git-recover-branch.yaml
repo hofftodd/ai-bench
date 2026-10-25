@@ -1,0 +1,28 @@
+name: git-recover-branch
+difficulty: medium
+instruction: |
+  In the git repository /work/repo someone accidentally deleted the branch `feature/payments`
+  (with `git branch -D`) before it was merged. Recreate the branch `feature/payments` pointing at
+  exactly the commit it pointed to before it was deleted. Leave the current branch checked out.
+setup: |
+  mkdir -p /work/repo && cd /work/repo
+  git init -q -b main
+  echo "app" > README.md; git add -A; git commit -qm "initial"
+  git checkout -qb feature/payments
+  for i in 1 2 3; do echo "payment step $i" >> payments.py; git add -A; git commit -qm "payments: step $i"; done
+  git rev-parse HEAD > /root/expected/tip
+  git checkout -qb feature/payments-spike
+  echo "spike" >> payments.py; git commit -qam "spike: try something"
+  git checkout -q main
+  echo "hotfix" >> README.md; git commit -qam "hotfix"
+  git branch -qD feature/payments feature/payments-spike
+  git rev-parse HEAD > /root/expected/main
+verify: |
+  cd /work/repo
+  [ "$(git rev-parse --abbrev-ref HEAD)" = main ] || { echo "current branch changed"; exit 1; }
+  [ "$(git rev-parse HEAD)" = "$(cat /root/expected/main)" ] || { echo "main was modified"; exit 1; }
+  got=$(git rev-parse --verify -q refs/heads/feature/payments) || { echo "branch feature/payments does not exist"; exit 1; }
+  [ "$got" = "$(cat /root/expected/tip)" ] || { echo "feature/payments points to $got, not the original tip"; exit 1; }
+solution: |
+  cd repo && tip=$(git reflog --format='%H %gs' | awk '/checkout: moving from feature\/payments to feature\/payments-spike/{print $1; exit}') \
+    && git branch feature/payments "$tip"

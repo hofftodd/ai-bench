@@ -1,0 +1,74 @@
+name: fix-inventory
+difficulty: easy
+instruction: |
+  The unit tests in /work/project fail (run them with `python3 -m unittest` inside that directory).
+  Fix the bugs in project/inventory.py so the tests pass. Do not modify the test file.
+setup: |
+  mkdir -p /work/project && cd /work/project
+  cat > inventory.py <<'PY'
+  """Small inventory helpers."""
+
+
+  def total_value(items):
+      """Total stock value: sum of price * qty over all items, rounded to 2 decimals."""
+      return round(sum(i["price"] for i in items), 2)
+
+
+  def needs_restock(item, threshold=5):
+      """True when the item's quantity is at or below the threshold."""
+      return item["qty"] < threshold
+
+
+  def top_n(items, n):
+      """Names of the n items with the highest stock value (price * qty), highest first."""
+      return [i["name"] for i in sorted(items, key=lambda i: i["price"] * i["qty"])[:n]]
+  PY
+  cat > test_inventory.py <<'PY'
+  import unittest
+  from inventory import needs_restock, top_n, total_value
+
+  ITEMS = [
+      {"name": "bolt", "price": 0.25, "qty": 400},
+      {"name": "drill", "price": 89.99, "qty": 3},
+      {"name": "saw", "price": 24.5, "qty": 5},
+      {"name": "glue", "price": 3.1, "qty": 12},
+  ]
+
+
+  class InventoryTest(unittest.TestCase):
+      def test_total_value(self):
+          self.assertEqual(total_value(ITEMS), 529.67)
+
+      def test_restock_boundary(self):
+          self.assertTrue(needs_restock({"qty": 5}))
+          self.assertFalse(needs_restock({"qty": 6}))
+
+      def test_top_n(self):
+          self.assertEqual(top_n(ITEMS, 2), ["drill", "saw"])
+
+
+  if __name__ == "__main__":
+      unittest.main()
+  PY
+  sha256sum test_inventory.py > /root/expected/test.sha256
+  cat > /root/expected/hidden_test.py <<'PY'
+  import sys
+  sys.path.insert(0, "/work/project")
+  from inventory import needs_restock, top_n, total_value
+  items = [{"name": "a", "price": 1.5, "qty": 2}, {"name": "b", "price": 10.0, "qty": 1}, {"name": "c", "price": 0.1, "qty": 3}]
+  assert total_value(items) == 13.3, total_value(items)
+  assert total_value([]) == 0
+  assert needs_restock({"qty": 0}) and needs_restock({"qty": 2}, threshold=2) and not needs_restock({"qty": 3}, threshold=2)
+  assert top_n(items, 3) == ["b", "a", "c"], top_n(items, 3)
+  assert top_n(items, 1) == ["b"]
+  PY
+verify: |
+  cd /work/project
+  sha256sum -c --quiet /root/expected/test.sha256 || { echo "test_inventory.py was modified"; exit 1; }
+  python3 -m unittest -q test_inventory 2>&1 || exit 1
+  python3 /root/expected/hidden_test.py
+solution: |
+  cd project
+  sed -i 's/sum(i\["price"\] for i in items)/sum(i["price"] * i["qty"] for i in items)/' inventory.py
+  sed -i 's/item\["qty"\] < threshold/item["qty"] <= threshold/' inventory.py
+  sed -i 's/key=lambda i: i\["price"\] \* i\["qty"\])/key=lambda i: i["price"] * i["qty"], reverse=True)/' inventory.py

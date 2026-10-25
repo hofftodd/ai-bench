@@ -1,0 +1,50 @@
+name: git-bisect
+difficulty: hard
+instruction: |
+  In the git repository /work/repo, `./check.sh` succeeds on the very first commit but fails on
+  the current HEAD. Find the first commit at which `./check.sh` fails and write its full
+  40-character commit hash to /work/bad_commit.txt. When you are done, the repository must be
+  back on the main branch at its original HEAD.
+setup: |
+  mkdir -p /work/repo && cd /work/repo
+  git init -q -b main
+  cat > check.sh <<'SH'
+  #!/bin/sh
+  python3 -c "from pricing import price_with_tax; assert price_with_tax(100) == 108.0, price_with_tax(100)"
+  SH
+  chmod +x check.sh
+  printf 'RATE = 1.08\n' > rates.py
+  printf 'from rates import RATE\n\n\ndef price_with_tax(p):\n    return round(p * RATE, 2)\n' > pricing.py
+  git add -A; git commit -qm "initial pricing"
+  python3 - <<'PY'
+  import random, subprocess
+  r = random.Random(23)
+  msgs = ["update docs", "refactor constants", "tidy imports", "bump version", "add changelog entry",
+          "fix typo", "small cleanup", "rename variable", "improve comments", "adjust formatting"]
+  for i in range(1, 41):
+      if i == 26:
+          open("rates.py", "w").write("# tax configuration\nRATE = 1.008\n")
+      elif i in (9, 31, 37):
+          src = open("rates.py").read()
+          open("rates.py", "w").write(src + f"# reviewed {i}\n")
+      with open("CHANGELOG.md", "a") as f:
+          f.write(f"- change {i}\n")
+      if i % 7 == 0:
+          open("pricing.py", "a").write(f"# note {i}\n")
+      subprocess.run(["git", "add", "-A"], check=True)
+      subprocess.run(["git", "commit", "-qm", r.choice(msgs)], check=True)
+      if i == 26:
+          open("/root/expected/bad", "w").write(subprocess.check_output(["git", "rev-parse", "HEAD"], text=True))
+  PY
+  git rev-parse HEAD > /root/expected/head
+verify: |
+  cd /work/repo
+  [ "$(git rev-parse --abbrev-ref HEAD)" = main ] || { echo "repository is not on branch main"; exit 1; }
+  [ "$(git rev-parse HEAD)" = "$(cat /root/expected/head)" ] || { echo "HEAD moved"; exit 1; }
+  python3 /root/check.py lines /work/bad_commit.txt /root/expected/bad
+solution: |
+  cd repo
+  git bisect start HEAD "$(git rev-list --max-parents=0 HEAD)" >/dev/null
+  git bisect run ./check.sh >/dev/null 2>&1
+  git rev-parse refs/bisect/bad > ../bad_commit.txt
+  git bisect reset >/dev/null 2>&1

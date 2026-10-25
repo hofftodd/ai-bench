@@ -1,0 +1,29 @@
+name: kill-rogue
+difficulty: easy
+instruction: |
+  Several processes named `rogue-worker` are running on this machine and must be stopped.
+  Terminate all of them without stopping any other process, then write the PIDs you
+  terminated to /work/killed.txt, one per line.
+setup: |
+  # setsid -f detaches each process from its launcher, so only the renamed processes remain
+  # (no lingering wrappers whose command line also mentions the name).
+  start() { runuser -u agent -- setsid -f bash -c "exec -a $1 sleep 1000000" </dev/null >/dev/null 2>&1; }
+  for i in 1 2 3; do start rogue-worker; done
+  for i in 1 2; do start good-worker; done
+  start rogue-worker-monitor
+  sleep 1
+  pgrep -f '^rogue-worker( |$)' | sort -n > /root/expected/rogue.pids
+  pgrep -f '^(good-worker|rogue-worker-monitor)' | sort -n > /root/expected/keep.pids
+  [ "$(wc -l < /root/expected/rogue.pids)" = 3 ] && [ "$(wc -l < /root/expected/keep.pids)" = 3 ]
+  ! pgrep -f '^(runuser|setsid)' >/dev/null   # no launcher processes left behind
+verify: |
+  for p in $(cat /root/expected/rogue.pids); do
+    if [ -e /proc/$p ] && ! grep -q '^State:.*Z' /proc/$p/status 2>/dev/null; then echo "rogue-worker $p still running"; exit 1; fi
+  done
+  for p in $(cat /root/expected/keep.pids); do
+    [ -e /proc/$p ] || { echo "process $p ($(cat /proc/$p/cmdline 2>/dev/null)) should still be running"; exit 1; }
+  done
+  python3 /root/check.py lines /work/killed.txt /root/expected/rogue.pids --unordered
+solution: |
+  pgrep -f '^rogue-worker( |$)' > killed.txt
+  kill $(cat killed.txt)

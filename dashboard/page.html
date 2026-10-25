@@ -1,0 +1,438 @@
+<style>
+.rb { display: flex; flex-direction: column; gap: var(--cds-gap-lg); font-family: var(--font-anthropic-sans); font-variant-numeric: tabular-nums; }
+.rb h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
+.rb h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0; text-wrap: balance; }
+.rb-take { margin: var(--cds-gap-xs) 0 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-body); max-width: 72ch; }
+.rb .rb-take b { color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+
+.rb-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: var(--cds-gap-md); }
+.rb-tile, .rb-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); min-width: 0; }
+.rb-tile { display: flex; flex-direction: column; gap: var(--cds-gap-xs); }
+.rb-lbl { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.rb-big { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); line-height: 1.1; }
+.rb-unit { font-size: var(--cds-font-size-heading); color: var(--color-fg-muted); }
+.rb-sub { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+
+.rb-card { display: flex; flex-direction: column; gap: var(--cds-gap-md); }
+.rb-card-head { display: flex; flex-direction: column; gap: var(--cds-gap-xs); }
+.rb-note { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); max-width: 72ch; }
+.rb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: var(--cds-gap-md); }
+
+.rb-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 10.5rem), 1fr)); gap: var(--cds-gap-sm); min-height: 3.25rem; }
+.rb-step { display: flex; align-items: center; gap: var(--cds-gap-sm); padding: var(--cds-pad-sm); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); min-width: 0; }
+.rb-step-n { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); min-width: 1ch; }
+.rb-step-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: var(--cds-font-size-body); }
+.rb-pill { font-size: var(--cds-font-size-caption); padding: 0 var(--cds-pad-xs); border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.rb-pill.is-done { color: var(--color-ok); }
+.rb-pill.is-running { color: var(--color-warn); }
+.rb-pill.is-queued { color: var(--color-fg-muted); }
+.rb-step.is-running { border-color: var(--color-warn); }
+
+.rb-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.rb-legend span { display: inline-flex; align-items: center; gap: var(--cds-gap-xs); }
+.rb-sw { width: 0.625rem; height: 0.625rem; border-radius: 2px; display: inline-block; }
+.rb-chart { position: relative; min-height: 12rem; }
+.rb-chart svg { display: block; overflow: visible; }
+.rb-tick { fill: var(--color-fg-muted); font-size: var(--cds-font-size-caption); font-family: var(--font-anthropic-sans); }
+.rb-name { fill: var(--color-fg); }
+.rb-val { fill: var(--color-fg); font-size: var(--cds-font-size-caption); font-family: var(--font-anthropic-sans); }
+.rb-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); white-space: nowrap; z-index: 2; }
+.rb-tip-h { color: var(--cds-text-secondary); margin-bottom: 2px; }
+.rb-tip-row { display: flex; align-items: center; gap: var(--cds-gap-xs); }
+
+.rb-tablewrap { overflow-x: auto; }
+.rb table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-body); }
+.rb th { text-align: right; font-weight: var(--cds-font-weight-medium); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+.rb td { text-align: right; padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+.rb th:first-child, .rb td:first-child, .rb th.l, .rb td.l { text-align: left; }
+.rb tr:last-child td { border-bottom: 0; }
+
+.rb-fail { display: flex; align-items: center; justify-content: center; gap: var(--cds-gap-xs); min-height: inherit; height: 100%; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.rb-fail::before { content: ""; width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--color-bad); }
+.rb [data-dash-source-state=empty] { color: transparent; }
+.rb [data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+</style>
+
+<div class="rb">
+  <header>
+    <h1 id="title">R9700 model bench</h1>
+    <p class="rb-take" id="takeaway"><span class="dash-skeleton">—</span></p>
+  </header>
+
+  <section class="rb-tiles" id="headline">
+    <div class="rb-tile">
+      <div class="rb-lbl">Overnight run progress</div>
+      <div class="rb-big"><span data-source="summary" data-row="0" data-field="done" class="dash-skeleton">—</span><span class="rb-unit"> of <span data-source="summary" data-row="0" data-field="total">—</span></span></div>
+      <div class="rb-sub">models finished</div>
+    </div>
+    <div class="rb-tile">
+      <div class="rb-lbl">Best terminal-x3 pass rate</div>
+      <div class="rb-big"><span data-source="summary" data-row="0" data-field="best_term" class="dash-skeleton">—</span><span class="rb-unit">%</span></div>
+      <div class="rb-sub" data-source="summary" data-row="0" data-field="best_term_model">—</div>
+    </div>
+    <div class="rb-tile">
+      <div class="rb-lbl">Best LiveCodeBench pass@1</div>
+      <div class="rb-big"><span data-source="summary" data-row="0" data-field="best_lcb" class="dash-skeleton">—</span><span class="rb-unit">%</span></div>
+      <div class="rb-sub" data-source="summary" data-row="0" data-field="best_lcb_model">—</div>
+    </div>
+    <div class="rb-tile">
+      <div class="rb-lbl">Benchmark time so far</div>
+      <div class="rb-big"><span data-source="summary" data-row="0" data-field="wall_h" class="dash-skeleton">—</span><span class="rb-unit"> h</span></div>
+      <div class="rb-sub">finished suites only</div>
+    </div>
+  </section>
+
+  <section class="rb-card" id="progress">
+    <div class="rb-card-head">
+      <h2>Overnight run order</h2>
+      <p class="rb-note">Profile <b>overnight</b>: terminal-x3 then LiveCodeBench for each model, one model at a time on the R9700.</p>
+    </div>
+    <ol class="rb-steps" id="steps" data-source="models"></ol>
+  </section>
+
+  <div class="rb-grid">
+    <section class="rb-card" id="overnight-chart">
+      <div class="rb-card-head">
+        <h2>Overnight scores</h2>
+        <p class="rb-note">Finished models only. terminal-x3 repeats every agentic shell task three times; LiveCodeBench is an even sample of medium and hard v6 problems. Hover a model for counts.</p>
+      </div>
+      <div class="rb-legend" data-source="models">
+        <span><i class="rb-sw" id="sw0"></i>terminal-x3 pass</span>
+        <span><i class="rb-sw" id="sw1"></i>LiveCodeBench pass@1</span>
+      </div>
+      <div class="rb-chart" id="chart-overnight" data-source="models"></div>
+    </section>
+
+    <section class="rb-card" id="speed-chart">
+      <div class="rb-card-head">
+        <h2>Generation speed at 8k context</h2>
+        <p class="rb-note">Tokens per second from each model's latest quick-profile run. Hover a bar for prompt speed and time to first token.</p>
+      </div>
+      <div class="rb-chart" id="chart-speed" data-source="models"></div>
+    </section>
+  </div>
+
+  <section class="rb-card" id="overnight-table">
+    <div class="rb-card-head">
+      <h2>Overnight results</h2>
+      <p class="rb-note">"Cut off" counts LiveCodeBench answers that hit the max_tokens limit before finishing; those score as failures, so the cap pulls down LCB for models that think at length. Strata loaded while VRAM from the previous model was still in use, so read its numbers with care.</p>
+    </div>
+    <div class="rb-tablewrap">
+      <table data-source="models" data-row-key="model">
+        <thead><tr>
+          <th data-field="model">Model</th>
+          <th data-field="overnight_status" class="l">Status</th>
+          <th data-field="terminal_x3_pass_pct">terminal-x3 %</th>
+          <th data-field="lcb_pass_pct">LCB pass@1 %</th>
+          <th data-field="lcb_truncated">LCB cut off</th>
+          <th data-field="lcb_problems">LCB problems</th>
+          <th data-field="terminal_x3_wall_min">terminal-x3 min</th>
+          <th data-field="lcb_wall_min">LCB min</th>
+        </tr></thead>
+        <tbody id="tbody-overnight"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="rb-card" id="quick-table">
+    <div class="rb-card-head">
+      <h2>Quick profile</h2>
+      <p class="rb-note">Latest quick run per model: a HumanEval+ subset, six terminal tasks, and server speed at a short and a long prompt.</p>
+    </div>
+    <div class="rb-tablewrap">
+      <table data-source="models" data-row-key="model">
+        <thead><tr>
+          <th data-field="model">Model</th>
+          <th data-field="backend" class="l">Backend</th>
+          <th data-field="humaneval_quick_pass_pct">HumanEval %</th>
+          <th data-field="humaneval_quick_plus_pct">HumanEval+ %</th>
+          <th data-field="terminal_quick_pass_pct">Terminal %</th>
+          <th data-field="pp512_tok_s">Prompt 512 tok/s</th>
+          <th data-field="tg512_tok_s">Gen @512 tok/s</th>
+          <th data-field="pp8k_tok_s">Prompt 8k tok/s</th>
+          <th data-field="tg8k_tok_s">Gen @8k tok/s</th>
+          <th data-field="ttft8k_s">TTFT @8k s</th>
+        </tr></thead>
+        <tbody id="tbody-quick"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+dash.calc('summary', {
+  inputs: ['models'],
+  title: 'Overnight run summary',
+  description: 'Counts finished models, picks the best overnight score per suite, and adds up finished suite time in hours.',
+  fn: (models) => {
+    const n = (v) => (v === '' || v == null ? null : Number(v));
+    const done = models.filter((m) => m.overnight_status === 'done');
+    const best = (k) => done.reduce((a, m) => (a == null || n(m[k]) > n(a[k]) ? m : a), null);
+    const bt = best('terminal_x3_pass_pct');
+    const bl = best('lcb_pass_pct');
+    const running = models.find((m) => m.overnight_status === 'running');
+    const wallMin = done.reduce((s, m) => s + n(m.terminal_x3_wall_min) + n(m.lcb_wall_min), 0);
+    return [{
+      done: done.length,
+      total: models.length,
+      running: running ? running.model : '',
+      best_term_model: bt ? bt.model : '',
+      best_term: bt ? n(bt.terminal_x3_pass_pct) : null,
+      best_lcb_model: bl ? bl.model : '',
+      best_lcb: bl ? n(bl.lcb_pass_pct) : null,
+      wall_h: Math.round(wallMin / 6) / 10,
+    }];
+  },
+});
+
+(() => {
+  const n = (v) => (v === '' || v == null ? null : Number(v));
+  const show = (v) => (v === '' || v == null ? '—' : String(v));
+  const $ = (id) => document.getElementById(id);
+
+  $('sw0').style.background = dash.colors[0];
+  $('sw1').style.background = dash.colors[1];
+
+  function failLine(el) {
+    el.textContent = '';
+    const d = document.createElement('div');
+    d.className = 'rb-fail';
+    d.textContent = 'Failed to load';
+    el.appendChild(d);
+  }
+
+  function span(text, attrs, bold) {
+    const el = document.createElement(bold ? 'b' : 'span');
+    el.textContent = text;
+    for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, v);
+    return el;
+  }
+
+  function fillMarks(s) {
+    document.querySelectorAll('[data-source="summary"][data-field]').forEach((el) => {
+      el.classList.remove('dash-skeleton');
+      if (s.status !== 'ok') { el.textContent = '—'; return; }
+      el.textContent = show(s.data[0][el.dataset.field]);
+    });
+  }
+
+  function takeaway(s) {
+    const p = $('takeaway');
+    p.textContent = '';
+    if (s.status !== 'ok') {
+      p.appendChild(span('—', { class: s.status === 'loading' ? 'dash-skeleton' : '' }));
+      return;
+    }
+    const r = s.data[0];
+    const m = (f, bold) => span(show(r[f]), { 'data-source': 'summary', 'data-row': '0', 'data-field': f }, bold);
+    const t = (x) => document.createTextNode(x);
+    if (r.best_term_model && r.best_term_model === r.best_lcb_model) {
+      p.append(m('best_term_model', true), t(' leads both overnight suites so far: '), m('best_term'),
+        t('% on terminal-x3 and '), m('best_lcb'), t('% on LiveCodeBench. '));
+    } else if (r.best_term_model) {
+      p.append(m('best_term_model', true), t(' leads terminal-x3 at '), m('best_term'), t('%; '),
+        m('best_lcb_model', true), t(' leads LiveCodeBench at '), m('best_lcb'), t('%. '));
+    }
+    p.append(m('done'), t(' of '), m('total'), t(' models are finished'));
+    if (r.running) p.append(t('; '), m('running', true), t(' is running now.'));
+    else p.append(t('.'));
+  }
+
+  function steps(d) {
+    const ol = $('steps');
+    ol.textContent = '';
+    ol.classList.remove('dash-skeleton');
+    if (d.status === 'loading') { ol.classList.add('dash-skeleton'); return; }
+    if (d.status !== 'ok') { failLine(ol); return; }
+    const rows = d.data.slice().sort((a, b) => n(a.overnight_order) - n(b.overnight_order));
+    for (const r of rows) {
+      const where = 'model=' + encodeURIComponent(r.model);
+      const li = document.createElement('li');
+      li.className = 'rb-step is-' + r.overnight_status;
+      li.append(
+        span(show(r.overnight_order), { class: 'rb-step-n', 'data-source': 'models', 'data-where': where, 'data-field': 'overnight_order' }),
+        span(r.model, { class: 'rb-step-name', 'data-source': 'models', 'data-where': where, 'data-field': 'model' }),
+        span(r.overnight_status, { class: 'rb-pill is-' + r.overnight_status, 'data-source': 'models', 'data-where': where, 'data-field': 'overnight_status' }),
+      );
+      ol.appendChild(li);
+    }
+  }
+
+  function table(tbodyId, d, fields, leftFields) {
+    const tb = $(tbodyId);
+    tb.textContent = '';
+    if (d.status !== 'ok') {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = fields.length;
+      if (d.status === 'loading') { td.className = 'dash-skeleton'; td.textContent = '—'; }
+      else failLine(td);
+      tr.appendChild(td);
+      tb.appendChild(tr);
+      return;
+    }
+    const rows = d.data.slice().sort((a, b) => n(a.overnight_order) - n(b.overnight_order));
+    for (const r of rows) {
+      const tr = document.createElement('tr');
+      for (const f of fields) {
+        const td = document.createElement('td');
+        if (leftFields.includes(f)) td.className = 'l';
+        if (f === 'overnight_status') {
+          const pill = document.createElement('span');
+          pill.className = 'rb-pill is-' + r[f];
+          pill.textContent = r[f];
+          td.appendChild(pill);
+        } else {
+          td.textContent = show(r[f]);
+        }
+        tr.appendChild(td);
+      }
+      tb.appendChild(tr);
+    }
+  }
+
+  // Horizontal bars, one band per model, one bar per series inside it.
+  function hbar(box, rows, series, opts) {
+    box.textContent = '';
+    const W = Math.max(280, box.clientWidth || 600);
+    const svg = d3.select(box).append('svg').attr('width', '100%');
+    const measure = (text, cls) => {
+      const el = svg.append('text').attr('class', cls).text(text);
+      const w = el.node().getComputedTextLength();
+      el.remove();
+      return w;
+    };
+    const left = d3.max(rows, (r) => measure(r.model, 'rb-tick rb-name')) + 12;
+    const right = d3.max(rows, (r) => d3.max(series, (s) => measure(opts.fmt(n(r[s.key])), 'rb-val'))) + 10;
+    const barH = Math.min(32, series.length > 1 ? 14 : 18);
+    const bandH = series.length * (barH + 4) + 12;
+    const top = 2, bottom = 22;
+    const H = top + rows.length * bandH + bottom;
+    svg.attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+    box.style.minHeight = H + 'px';
+
+    const x = d3.scaleLinear([0, opts.max], [left, W - right]);
+    const y = d3.scaleBand(rows.map((r) => r.model), [top, H - bottom]).paddingInner(0.2).paddingOuter(0.05);
+
+    const nTicks = Math.max(2, Math.min(5, Math.floor((W - left - right) / 70)));
+    const ticks = x.ticks(nTicks);
+    svg.append('g').selectAll('line').data(ticks).join('line')
+      .attr('x1', (d) => x(d)).attr('x2', (d) => x(d)).attr('y1', top).attr('y2', H - bottom)
+      .style('stroke', 'var(--cds-chart-grid)');
+    svg.append('g').selectAll('text').data(ticks).join('text')
+      .attr('class', 'rb-tick').attr('x', (d) => x(d)).attr('y', H - 6).attr('text-anchor', 'middle')
+      .text((d) => opts.tick(d));
+
+    const tip = document.createElement('div');
+    tip.className = 'rb-tip';
+    tip.hidden = true;
+    box.appendChild(tip);
+
+    const g = svg.append('g').selectAll('g').data(rows).join('g')
+      .attr('transform', (r) => `translate(0,${y(r.model)})`);
+    g.append('text').attr('class', 'rb-tick rb-name').attr('x', left - 10).attr('y', y.bandwidth() / 2)
+      .attr('dy', '0.35em').attr('text-anchor', 'end').text((r) => r.model);
+
+    series.forEach((s, i) => {
+      const yy = (y.bandwidth() - series.length * barH - (series.length - 1) * 4) / 2 + i * (barH + 4);
+      g.append('rect').attr('x', left).attr('y', yy).attr('height', barH).attr('rx', 4)
+        .attr('width', (r) => Math.max(0, x(n(r[s.key]) || 0) - left))
+        .style('fill', s.color);
+      g.append('text').attr('class', 'rb-val').attr('x', (r) => x(n(r[s.key]) || 0) + 6)
+        .attr('y', yy + barH / 2).attr('dy', '0.35em').text((r) => opts.fmt(n(r[s.key])));
+    });
+
+    g.append('rect').attr('x', 0).attr('y', 0).attr('width', W).attr('height', y.bandwidth())
+      .style('fill', 'transparent')
+      .on('mouseenter', function (ev, r) {
+        g.selectAll('rect:not(:last-child)').style('opacity', (o) => (o === r ? 1 : 0.45));
+        tip.textContent = '';
+        const h = document.createElement('div');
+        h.className = 'rb-tip-h';
+        h.textContent = r.model;
+        tip.appendChild(h);
+        for (const line of opts.tipLines(r)) {
+          const row = document.createElement('div');
+          row.className = 'rb-tip-row';
+          if (line.color) {
+            const sw = document.createElement('i');
+            sw.className = 'rb-sw';
+            sw.style.background = line.color;
+            row.appendChild(sw);
+          }
+          row.appendChild(document.createTextNode(line.text));
+          tip.appendChild(row);
+        }
+        tip.hidden = false;
+        const bw = box.clientWidth, tw = tip.offsetWidth;
+        const px = Math.min(Math.max(0, (left / W) * bw), bw - tw);
+        tip.style.left = px + 'px';
+        tip.style.top = ((y(r.model) + y.bandwidth()) / H) * box.clientHeight + 4 + 'px';
+      })
+      .on('mouseleave', () => {
+        g.selectAll('rect:not(:last-child)').style('opacity', 1);
+        tip.hidden = true;
+      });
+  }
+
+  function chartState(box, d) {
+    box.classList.remove('dash-skeleton');
+    if (d.status === 'loading') { box.textContent = ''; box.classList.add('dash-skeleton'); return false; }
+    if (d.status !== 'ok') { failLine(box); return false; }
+    return true;
+  }
+
+  const f1 = d3.format('.1f');
+  const pct = (v) => (v == null ? '' : f1(v) + '%');
+  const tps = d3.format(',.0f');
+
+  dash.onData(() => {
+    const d = dash.data('models');
+    const s = dash.data('summary');
+    fillMarks(s);
+    takeaway(s);
+    steps(d);
+    table('tbody-overnight', d,
+      ['model', 'overnight_status', 'terminal_x3_pass_pct', 'lcb_pass_pct', 'lcb_truncated', 'lcb_problems', 'terminal_x3_wall_min', 'lcb_wall_min'],
+      ['overnight_status']);
+    table('tbody-quick', d,
+      ['model', 'backend', 'humaneval_quick_pass_pct', 'humaneval_quick_plus_pct', 'terminal_quick_pass_pct', 'pp512_tok_s', 'tg512_tok_s', 'pp8k_tok_s', 'tg8k_tok_s', 'ttft8k_s'],
+      ['backend']);
+
+    const ob = $('chart-overnight');
+    if (chartState(ob, d)) {
+      const done = d.data.filter((r) => r.overnight_status === 'done')
+        .sort((a, b) => n(a.overnight_order) - n(b.overnight_order));
+      if (!done.length) { ob.textContent = ''; }
+      else hbar(ob, done, [
+        { key: 'terminal_x3_pass_pct', color: dash.colors[0] },
+        { key: 'lcb_pass_pct', color: dash.colors[1] },
+      ], {
+        max: 100,
+        fmt: pct,
+        tick: (v) => v + '%',
+        tipLines: (r) => [
+          { color: dash.colors[0], text: `terminal-x3  ${pct(n(r.terminal_x3_pass_pct))} of ${show(r.terminal_x3_episodes)} episodes` },
+          { color: dash.colors[1], text: `LiveCodeBench  ${pct(n(r.lcb_pass_pct))}, ${show(r.lcb_truncated)} of ${show(r.lcb_problems)} cut off` },
+        ],
+      });
+    }
+
+    const sb = $('chart-speed');
+    if (chartState(sb, d)) {
+      const rows = d.data.filter((r) => n(r.tg8k_tok_s) != null)
+        .sort((a, b) => n(b.tg8k_tok_s) - n(a.tg8k_tok_s));
+      hbar(sb, rows, [{ key: 'tg8k_tok_s', color: dash.colors[0] }], {
+        max: d3.max(rows, (r) => n(r.tg8k_tok_s)) * 1.05,
+        fmt: (v) => (v == null ? '' : f1(v)),
+        tick: (v) => tps(v),
+        tipLines: (r) => [
+          { text: `Generation @8k  ${show(r.tg8k_tok_s)} tok/s` },
+          { text: `Prompt 8k  ${tps(n(r.pp8k_tok_s))} tok/s` },
+          { text: `Time to first token  ${show(r.ttft8k_s)} s` },
+        ],
+      });
+    }
+  });
+})();
+</script>

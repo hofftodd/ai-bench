@@ -1,0 +1,38 @@
+name: csv-summary
+difficulty: easy
+instruction: |
+  /work/sales.csv is a CSV file with a header row: order_id,date,region,product,units,unit_price.
+  Write /work/summary.json containing a JSON object that maps each region name to an object
+  {"units": <total units>, "revenue": <sum of units * unit_price, rounded to 2 decimals>}.
+setup: |
+  python3 - <<'PY'
+  import csv, json, random
+  r = random.Random(3)
+  products = ["Widget, large", "Widget, small", "Gadget", 'Gizmo "Pro"', "Doohickey"]
+  regions = ["North", "South", "East", "West", "Central"]
+  tot = {}
+  with open("/work/sales.csv", "w", newline="") as f:
+      w = csv.writer(f)
+      w.writerow(["order_id", "date", "region", "product", "units", "unit_price"])
+      for i in range(1, 501):
+          reg, units, price = r.choice(regions), r.randint(1, 40), round(r.uniform(1, 250), 2)
+          w.writerow([i, f"2026-0{r.randint(1, 9)}-{r.randint(10, 28)}", reg, r.choice(products), units, price])
+          t = tot.setdefault(reg, {"units": 0, "revenue": 0.0})
+          t["units"] += units
+          t["revenue"] += units * price
+  for t in tot.values():
+      t["revenue"] = round(t["revenue"], 2)
+  json.dump(tot, open("/root/expected/summary.json", "w"))
+  PY
+verify: |
+  python3 /root/check.py json /work/summary.json /root/expected/summary.json
+solution: |
+  python3 - <<'PY'
+  import csv, json
+  tot = {}
+  for row in csv.DictReader(open("sales.csv")):
+      t = tot.setdefault(row["region"], {"units": 0, "revenue": 0.0})
+      t["units"] += int(row["units"]); t["revenue"] += int(row["units"]) * float(row["unit_price"])
+  for t in tot.values(): t["revenue"] = round(t["revenue"], 2)
+  json.dump(tot, open("summary.json", "w"))
+  PY

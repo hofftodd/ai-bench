@@ -1,0 +1,61 @@
+name: dedupe-files
+difficulty: medium
+instruction: |
+  /work/files contains duplicate files: files with identical content at different paths.
+  For every set of files with identical content, keep only the one whose path comes first in
+  byte-wise sort order (as `LC_ALL=C sort` orders them) and delete the others. Then write the
+  number of files you deleted to /work/deleted_count.txt.
+setup: |
+  python3 - <<'PY'
+  import json, os, random
+  r = random.Random(17)
+  dirs = ["files", "files/a", "files/a/b", "files/B", "files/photos 2024", "files/z"]
+  for d in dirs:
+      os.makedirs("/work/" + d, exist_ok=True)
+  contents, paths = [], {}
+  for g in range(8):
+      data = r.randbytes(r.randint(100, 3000))
+      copies = 1 if g < 2 else r.randint(2, 4)
+      for c in range(copies):
+          p = f"{r.choice(dirs)}/{r.choice(['doc', 'img', 'Copy of x', 'data'])}-{g}-{c}.bin"
+          paths[p] = data
+  # Same size, different content: must NOT be treated as duplicates.
+  for i in range(3):
+      paths[f"files/z/same-size-{i}.bin"] = bytes([i]) * 1000
+  for p, data in paths.items():
+      open("/work/" + p, "wb").write(data)
+  groups = {}
+  for p, data in paths.items():
+      groups.setdefault(data, []).append(p)
+  keep = sorted(min(ps, key=lambda s: s.encode()) for ps in groups.values())
+  json.dump({"keep": keep, "deleted": len(paths) - len(keep)}, open("/root/expected/dedupe.json", "w"))
+  PY
+verify: |
+  python3 - <<'PY'
+  import json, os, sys
+  exp = json.load(open("/root/expected/dedupe.json"))
+  got = sorted(os.path.relpath(os.path.join(r, f), "/work") for r, _, fs in os.walk("/work/files") for f in fs)
+  if got != sorted(exp["keep"]):
+      sys.exit(f"remaining files wrong.\nshould remain but missing: {sorted(set(exp['keep']) - set(got))}\n"
+               f"should be deleted: {sorted(set(got) - set(exp['keep']))}")
+  try:
+      n = int(open("/work/deleted_count.txt").read().strip())
+  except (OSError, ValueError):
+      sys.exit("deleted_count.txt missing or not a number")
+  if n != exp["deleted"]:
+      sys.exit(f"deleted_count.txt says {n}, expected {exp['deleted']}")
+  PY
+solution: |
+  python3 - <<'PY'
+  import hashlib, os
+  groups = {}
+  for r, _, fs in os.walk("files"):
+      for f in fs:
+          p = os.path.join(r, f)
+          groups.setdefault(hashlib.sha256(open(p, "rb").read()).digest(), []).append(p)
+  n = 0
+  for ps in groups.values():
+      for p in sorted(ps, key=lambda s: s.encode())[1:]:
+          os.remove(p); n += 1
+  open("deleted_count.txt", "w").write(f"{n}\n")
+  PY

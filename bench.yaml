@@ -1,0 +1,196 @@
+# aibench config for this machine. `aibench list` shows everything; `aibench check` pings backends.
+#
+#   uv run aibench run -s quick                        # every model below, quick profile
+#   uv run aibench run -m nemotron-lightning -m flint -m strata -s full
+#   uv run aibench report                              # compare everything stored in results/
+
+hardware: r9700-vulkan        # label for this box/driver/build; change it when you change hardware
+results_dir: results
+monitor_gpus: auto            # GPUs with >= 4 GiB VRAM (skips the 780M iGPU)
+default_backend: swap         # unknown -m names are tried as model ids on this backend
+plugins: [plugins]            # every *.py in ./plugins is imported (custom backends/suites)
+
+backends:
+  # Your always-on llama-swap (llama.cpp Vulkan). exclusive: unload everything else first,
+  # including the resident qwen3.8-27b, so each model gets the whole R9700.
+  swap:
+    type: llama-swap
+    base_url: http://localhost:8080/v1
+    exclusive: true
+
+  # Strata (Rust/HIP engine for Qwen3.8-Flash-Next, https://github.com/Niko1221/Strata).
+  # Its default port 8080 collides with llama-swap, so it's started on 8090. llama-swap is
+  # emptied first so Strata gets the VRAM, and Strata is stopped afterwards.
+  strata:
+    type: process
+    start: strata launch --yes --no-tui --port {port}
+    stop: strata launch --stop
+    detached: true            # `strata launch --no-tui` returns once the server is up
+    port: 8090
+    pre: ["curl -s http://localhost:8080/unload"]
+    startup_timeout: 1800     # first start downloads the engine + model
+
+  # A llama.cpp build aibench starts itself: point `binary` at a ROCm/HIP build to
+  # compare against Vulkan on the same GGUFs (models need `gguf:`).
+  llamacpp-rocm:
+    type: llama-server
+    binary: ~/src/llama.cpp/build-rocm/bin/llama-server
+    port: 5898
+    args: [--n-gpu-layers, 99, --flash-attn, "on", --jinja, --ctx-size, 65536, --parallel, 4,
+           --cache-type-k, q8_0, --cache-type-v, q8_0]
+    pre: ["curl -s http://localhost:8080/unload"]
+
+  ollama:
+    type: ollama
+    base_url: http://localhost:11434
+
+models:
+  nemotron-lightning:
+    backend: swap
+    id: nemotron-3.5-lightning-30b-a3b
+    gguf: ~/models/nemotron-3.5-lightning-30b-a3b/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-UD-Q4_K_XL.gguf
+    max_tokens: 32768          # reasoning model: leave room to think
+    params: {temperature: 1.0, top_p: 0.95}      # same family/card guidance as Bolt
+
+  # Nemotron 3.5 Bolt 74B-A9B (Oct 2026): NVIDIA's 24GB GGUF + its DFlash drafter, via llama-swap.
+  nemotron-bolt:
+    backend: swap
+    id: nemotron-3.5-bolt-74b-a9b
+    gguf: ~/models/nemotron-3.5-bolt-74b-a9b/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95}       # NVIDIA's recommended text sampling
+
+  # Flint (Recursive's 40B-A2.5B coding MoE), Unsloth UD-Q4_K_XL, via llama-swap.
+  flint:
+    backend: swap
+    id: flint
+    gguf: ~/models/flint/flint-UD-Q4_K_XL.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20, keep_reasoning: true}   # per Recursive/Unsloth
+
+  strata:
+    backend: strata
+    id: qwen3.8-flash-next-iq3_s
+    # IQ3_S: Strata's pick for this box and its best-quality size ("matches the full model").
+    # Experts (~50 GB) live in RAM, dense weights in VRAM, a 29 GB lookup table on the SSD; needs
+    # ~60 GB of free RAM, which is why llama-swap is emptied first. Add a `strata-q2` model with
+    # --model q2_0 for the faster 2-bit pack (~44 GB RAM).
+    args: [--model, iq3_s, --context, 128k, --vision, "off", --tune, skip]
+    max_tokens: 32768          # reasoning model, same budget as the others
+
+  qwen3.8-27b:
+    backend: swap
+    id: qwen3.8-27b
+    gguf: ~/models/qwen3.8-27b/Qwen3.8-27B-UD-Q4_K_XL.gguf
+    max_tokens: 32768
+    params: {temperature: 0.6, top_p: 0.95, top_k: 20}   # Qwen thinking-mode defaults
+  # ThinkingCap (bottlecapai): Qwen3.8-27B finetune that claims ~37% fewer reasoning tokens.
+  # Card says to use the base model's thinking-mode sampling, so params match qwen3.8-27b.
+  # Note the quant differs: Q4_K_M here vs UD-Q4_K_XL for the base.
+  thinkingcap-qwen3.8-27b:
+    backend: swap
+    id: thinkingcap-qwen3.8-27b
+    gguf: ~/models/thinkingcap-qwen3.8-27b/ThinkingCap-Qwen3.8-27B-Q4_K_M.gguf
+    max_tokens: 32768
+    params: {temperature: 0.6, top_p: 0.95, top_k: 20}
+  qwen3.6-35b-a3b:
+    backend: swap
+    id: qwen3.6-35b-a3b
+    gguf: ~/models/qwen3.6-35b-a3b/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf
+    max_tokens: 32768
+    params: {temperature: 0.6, top_p: 0.95, top_k: 20}
+  gemma-4-26b:
+    backend: swap
+    id: gemma-4-26b-a4b
+    gguf: ~/models/gemma-4-26b-a4b/gemma-4-26B-A4B-it-UD-Q6_K_XL.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 64}   # Gemma defaults
+  qwen3-coder-30b:
+    backend: swap
+    id: qwen3-coder-30b-a3b
+    gguf: ~/models/qwen3-coder-30b-a3b/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf
+    params: {temperature: 0.7, top_p: 0.8, top_k: 20, repeat_penalty: 1.05}   # Qwen3-Coder defaults
+  # Laguna XS 2.1 (poolside, 33B-A3B coding MoE), poolside's own Q4_K_M GGUF, via llama-swap.
+  # Copied from the NAS 2026-10-24; its llama-swap entry comes from llama-config (fitted ctx 126976).
+  laguna-xs-2.1:
+    backend: swap
+    id: laguna-xs-2.1
+    gguf: ~/models/laguna-xs-2.1/Laguna-XS-2.1-Q4_K_M.gguf
+    max_tokens: 32768          # thinking on by default (enable_thinking: true)
+    params: {temperature: 1.0, top_p: 1.0, top_k: 20, min_p: 0.0}   # poolside generation_config.json
+  gpt-oss-20b:
+    backend: swap
+    id: gpt-oss-20b
+    gguf: ~/models/gpt-oss-20b/gpt-oss-20b-mxfp4.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 1.0}       # OpenAI's gpt-oss defaults
+
+suites:
+  speed:
+    type: throughput
+    prompt_tokens: [512, 4096, 16384, 65536]
+    gen_tokens: 256
+    repeats: 3
+  speed-quick:
+    type: throughput
+    prompt_tokens: [512, 8192]
+    gen_tokens: 128
+    repeats: 2
+  speed-concurrent:
+    type: throughput
+    prompt_tokens: [1024]
+    gen_tokens: 256
+    repeats: 2
+    concurrency: [1, 2, 4]
+  humaneval:
+    type: humaneval-plus
+    concurrency: 4            # llama-swap's servers have 4 slots
+    timeout_s: 60
+  mbpp:
+    type: mbpp-plus
+    concurrency: 4
+  humaneval-quick:
+    type: humaneval-plus
+    limit: 40
+    concurrency: 4
+  my-tasks:
+    type: code-jsonl
+    path: tasks/example.jsonl
+  terminal:                   # agentic: bash/write_file tool calls in a Docker sandbox, 18 tasks
+    type: terminal
+    concurrency: 4
+    max_turns: 30
+  terminal-quick:
+    type: terminal
+    tasks: [log-error-report, kill-rogue, git-restore-file, csv-summary, fix-c-build, merge-conflict]
+    concurrency: 3
+  terminal-x3:                # all 18 tasks x 3 episodes each: steadier pass rates (54 episodes)
+    type: terminal
+    repeats: 3
+    concurrency: 4
+    max_turns: 30
+  livecodebench:              # competitive programming, Jan-Apr 2025 problems (LCB v6), hidden tests
+    type: livecodebench
+    release: v6
+    sample: {medium: 15, hard: 15}   # 30 evenly spaced problems; drop `sample` for all 175
+    concurrency: 4
+  lcb-easy-check:             # harness smoke test
+    type: livecodebench
+    sample: {easy: 8}
+    concurrency: 4
+  terminal-text:              # same tasks via ```bash blocks: isolates a server's tool-call parser
+    type: terminal            # from the model's ability (compare with `terminal`)
+    tool_mode: text
+    concurrency: 4
+  kernels:                    # raw llama.cpp speed on the GGUF, no server (GPU must be idle)
+    type: llama-bench
+    binary: ~/.local/bin/llama-bench
+    prompt_tokens: [512, 4096]
+    gen_tokens: [128]
+    args: [-ngl, 99, -fa, "on", -dev, Vulkan1]
+
+profiles:
+  quick: [speed-quick, humaneval-quick, terminal-quick]
+  full: [speed, speed-concurrent, humaneval, mbpp, terminal]
+  agentic: [terminal, terminal-text]
+  overnight: [terminal-x3, livecodebench]

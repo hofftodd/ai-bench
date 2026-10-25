@@ -1,0 +1,26 @@
+name: git-restore-file
+difficulty: medium
+instruction: |
+  The git repository in /work/repo used to contain a file named config.ini, but it was deleted
+  in one of the commits. Restore config.ini with exactly the content it had just before it was
+  deleted, and commit it on the main branch as a new commit. Do not rewrite existing history.
+setup: |
+  mkdir -p /work/repo && cd /work/repo
+  git init -q -b main
+  printf 'v=1\n' > config.ini; echo a > app.py; git add -A; git commit -qm "initial"
+  printf '[server]\nport=8080\n' > config.ini; git commit -qam "configure server"
+  printf '[server]\nport=9090\nworkers=4\n\n[cache]\nttl=300\n' > config.ini; echo b >> app.py; git commit -qam "tune workers"
+  cp config.ini /root/expected/config.ini
+  git rm -q config.ini; echo c >> app.py; git add -A; git commit -qm "cleanup"
+  echo d >> app.py; git commit -qam "more work"
+  printf 'v=2\n' > config.ini.example; git add -A; git commit -qm "add example config"
+  git rev-parse HEAD > /root/expected/head
+verify: |
+  cd /work/repo
+  [ "$(git rev-parse --abbrev-ref HEAD)" = main ] || { echo "not on branch main"; exit 1; }
+  git merge-base --is-ancestor "$(cat /root/expected/head)" HEAD || { echo "existing history was rewritten"; exit 1; }
+  [ "$(git rev-parse HEAD)" != "$(cat /root/expected/head)" ] || { echo "no new commit"; exit 1; }
+  git show HEAD:config.ini 2>/dev/null | cmp -s - /root/expected/config.ini || { echo "committed config.ini is missing or has the wrong content"; exit 1; }
+  cmp -s config.ini /root/expected/config.ini || { echo "config.ini in the working tree is wrong"; exit 1; }
+solution: |
+  cd repo && c=$(git rev-list -n1 HEAD -- config.ini) && git checkout "$c^" -- config.ini && git commit -qm "Restore config.ini"
