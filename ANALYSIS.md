@@ -91,6 +91,8 @@ Yes. These are in priority order, by value per GPU-hour:
 2. **Raise LiveCodeBench's `max_tokens` to 65,536** for the models with 7 or more cut-offs: nemotron-bolt, nemotron-lightning, qwen3.6, qwen3.8, ThinkingCap, flint and laguna.
    - llama-server shares one KV cache across its 4 slots, so a single answer can use the whole context. But four 66k answers at once would overflow a 262k pool, so run 3 requests at a time. *(Queued as `livecodebench-64k`.)*
    - This is the experiment most likely to reorder the leaderboard. Expect qwen3.8/ThinkingCap and the Nemotrons to move toward Gemma and Flint.
+   - *First result (Oct 25):* qwen3.8-27b goes from 56.7% to **66.7%**, but 9 of 30 answers are still cut off at 64k (12 at 32k). It averaged 33k output tokens per problem and took 6.5 hours. The other models are still running.
+   - **Why so long:** Qwen3.8's chat template defaults to `reasoning_effort: xhigh`, which adds a "think carefully, validate assumptions, consider alternatives" instruction. Nothing in our setup overrides it, so every qwen3.8 and ThinkingCap result is at maximum effort. A run at `medium` is queued (`qwen3.8-27b-medium`, stage E). It may be a cheaper fix than a bigger budget, and a better daily setting.
 3. **Make terminal harder.** This is now the top priority among the unqueued experiments: two models score 100% and a third 98.1%.
    - Add longer-horizon tasks: multi-file refactors, debugging a failing test suite, tasks that need 20+ turns.
    - Or report `avg turns` and tokens per task alongside pass rate as the tie-breakers.

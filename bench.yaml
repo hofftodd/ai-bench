@@ -85,6 +85,16 @@ models:
     gguf: ~/models/qwen3.8-27b/Qwen3.8-27B-UD-Q4_K_XL.gguf
     max_tokens: 32768
     params: {temperature: 0.6, top_p: 0.95, top_k: 20}   # Qwen thinking-mode defaults
+  # The same model and server at a lower reasoning effort. Qwen3.8's chat template takes
+  # reasoning_effort xhigh (its default, which adds a "think carefully..." instruction), medium or
+  # low. It's sent per request, so llama-swap needs no change.
+  qwen3.8-27b-medium:
+    <<: *qwen38_27b
+    params:
+      temperature: 0.6
+      top_p: 0.95
+      top_k: 20
+      extra_body: {chat_template_kwargs: {reasoning_effort: medium}}
   # ThinkingCap (bottlecapai): Qwen3.8-27B finetune that claims ~37% fewer reasoning tokens.
   # Card says to use the base model's thinking-mode sampling, so params match qwen3.8-27b.
   # Note the quant differs: Q4_K_M here vs UD-Q4_K_XL for the base.
