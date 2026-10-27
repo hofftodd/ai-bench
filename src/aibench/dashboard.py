@@ -58,10 +58,11 @@ def _rescore(x3: dict, fix: dict) -> float:
 def build_rows(runs: list[dict[str, Any]], hardware: str | None = None) -> list[dict[str, Any]]:
     """Latest successful result per (model, suite); overnight order is when a model first ran an overnight suite."""
     latest: dict[str, dict[str, dict]] = {}    # model -> suite -> result
+    run_no: dict[tuple[str, str], int] = {}     # (model, suite) -> index of the run its latest result is from
     backend: dict[str, str] = {}
     order: list[str] = []
     running: set[str] = set()
-    for run in runs:   # oldest first, so later results win
+    for i, run in enumerate(runs):   # oldest first, so later results win
         if hardware and run.get("hardware") != hardware:
             continue
         for res in run.get("results", []):
@@ -69,6 +70,7 @@ def build_rows(runs: list[dict[str, Any]], hardware: str | None = None) -> list[
                 continue
             m = res["model"]
             latest.setdefault(m, {})[res["suite"]] = res
+            run_no[m, res["suite"]] = i
             backend[m] = res["backend"]
             if res["suite"] in OVERNIGHT and m not in order:
                 order.append(m)
@@ -98,7 +100,8 @@ def build_rows(runs: list[dict[str, Any]], hardware: str | None = None) -> list[
         for col, (suite, key) in DETAILS.items():
             row[col] = ((suites.get(suite) or {}).get("details") or {}).get(key, "")
         row["terminal_x3_orig_pct"] = row["terminal_x3_pass_pct"]
-        if "terminal-x3" in suites and TERMINAL_FIX in suites:
+        # only when the fix ran after terminal-x3; a newer terminal-x3 already has the fixed task
+        if "terminal-x3" in suites and TERMINAL_FIX in suites and run_no[m, TERMINAL_FIX] > run_no[m, "terminal-x3"]:
             row["terminal_x3_pass_pct"] = _fmt(_rescore(suites["terminal-x3"], suites[TERMINAL_FIX]))
         rows.append(row)
     return rows
@@ -225,8 +228,8 @@ def write_markdown(rows: list[dict[str, Any]], out: Path, hardware: str,
         "\n## Overnight profile\n\n",
         "**terminal-x3** runs 18 agentic shell tasks three times each (54 episodes) in a Docker sandbox. "
         "Its `backup-rotation` task was broken in the original runs (it failed any model that tested its script). "
-        "The fixed task was re-run on its own, and the scores here use that result; \"as run\" is the original "
-        "score. **LiveCodeBench** is an evenly spaced sample of 15 medium and 15 hard v6 problems (Jan–Apr 2025), "
+        "For runs made before the fix, the fixed task was re-run on its own and its result is used here; "
+        "\"as run\" is the original score. **LiveCodeBench** is an evenly spaced sample of 15 medium and 15 hard v6 problems (Jan–Apr 2025), "
         "with a 32k-token budget; **LCB 64k** re-runs the same problems with 64k for models that ran out of room.\n\n",
         _bar_chart("terminal-x3 pass rate (%)", "pass %", done, "terminal_x3_pass_pct", 100), "\n",
         _bar_chart("LiveCodeBench pass@1 (%)", "pass@1 %", done, "lcb_pass_pct", 100), "\n",

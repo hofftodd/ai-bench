@@ -2,19 +2,19 @@
 
 Open work, known caveats in the current results, and ideas we deliberately left for later. Last reviewed 2026-10-25.
 
-## In progress
+## Done: the Oct 25–26 queue
 
 A queue started on 2026-10-25 runs these one at a time, once the Inkling download finishes. It's `logs/queue.sh`, running detached, so it survives the session. Progress goes to `logs/queue.log`, with one log per stage. It rebuilds `dashboard/data/` and `RESULTS.md` after each stage. Committing them, refreshing the hosted dashboard and updating ANALYSIS.md are still manual.
 
 - [x] **0. Quick-profile speed and HumanEval for ThinkingCap and Laguna** (`baseline` tag, ~40 min). `terminal-quick` is skipped because both already have the more thorough `terminal-x3`. This stage also runs the full `quick` profile for `gemma-4-e4b` (~15 min). *Done 10:02.*
 - [x] **A. ROCm vs. Vulkan speed** (`rocm-compare` tag, 40 min). *Done 10:41: Vulkan wins.* See [ROCm](#rocm-vs-vulkan) below.
 - [x] **B. Re-run the fixed `backup-rotation` task** for all ten models (`terminal-backup-rotation` suite, `overnight-fix` tag, 1 h). *Done 11:38;* folded into terminal-x3.
-- [ ] **C. LiveCodeBench with a 64k thinking budget** (`livecodebench-64k` suite, `overnight-64k` tag, roughly 15–25 h). It covers qwen3.8, ThinkingCap, flint, gemma, qwen3.6 and both Nemotrons. It skips Strata and qwen3-coder (no cut-offs) and Laguna (recommended for retirement).
-- [ ] **D. Re-run Strata's overnight profile on a clean GPU** (~3 h).
-- [ ] **E. qwen3.8-27b at `reasoning_effort: medium`** (model `qwen3.8-27b-medium`, `overnight` profile, `effort-medium` tag, ~3 h). Qwen3.8's chat template defaults to `xhigh`, which tells the model to "think carefully through the task, validate key assumptions, consider plausible alternatives…", and nothing in aibench or llama-swap overrides it. So every qwen3.8 and ThinkingCap number so far is at maximum effort. Even at 64k, qwen3.8 still had 9 of 30 LiveCodeBench answers cut off. If `medium` keeps the terminal score and finishes inside 32k, it's the better setting both for the benchmark and for daily use. Run by `logs/after-queue.sh` once the queue ends.
-- [ ] **Then: download DeepSeek V4 Flash** (`unsloth/DeepSeek-V4-Flash-GGUF`, UD-Q2_K_XL, ~97 GB) into `~/models/deepseek-v4-flash/`. The detached `logs/after-queue.sh` starts the download when the queue finishes and logs to `logs/deepseek-download.log`. Until then (and during stage E) it records the GPU's PCIe link every 5 minutes in `logs/pcie-link.log`. See [DeepSeek V4 Flash](#deepseek-v4-flash) below.
+- [x] **C. LiveCodeBench with a 64k thinking budget** (`livecodebench-64k` suite, `overnight-64k` tag, roughly 15–25 h). It covers qwen3.8, ThinkingCap, flint, gemma, qwen3.6 and both Nemotrons. It skips Strata and qwen3-coder (no cut-offs) and Laguna (recommended for retirement).
+- [x] **D. Re-run Strata's overnight profile on a clean GPU** (~3 h). *Done Oct 26: same scores, clean VRAM baseline.*
+- [x] **E. qwen3.8-27b at `reasoning_effort: medium`** (model `qwen3.8-27b-medium`, `overnight` profile, `effort-medium` tag, ~3 h). Qwen3.8's chat template defaults to `xhigh`, which tells the model to "think carefully through the task, validate key assumptions, consider plausible alternatives…", and nothing in aibench or llama-swap overrides it. So every qwen3.8 and ThinkingCap number so far is at maximum effort. Even at 64k, qwen3.8 still had 9 of 30 LiveCodeBench answers cut off. If `medium` keeps the terminal score and finishes inside 32k, it's the better setting both for the benchmark and for daily use. Run by `logs/after-queue.sh` once the queue ends.
+- [x] **Then: download DeepSeek V4 Flash** (`unsloth/DeepSeek-V4-Flash-GGUF`, UD-Q2_K_XL, ~97 GB) into `~/models/deepseek-v4-flash/`. The detached `logs/after-queue.sh` starts the download when the queue finishes and logs to `logs/deepseek-download.log`. Until then (and during stage E) it records the GPU's PCIe link every 5 minutes in `logs/pcie-link.log`. See [DeepSeek V4 Flash](#deepseek-v4-flash) below.
 
-The dashboard, RESULTS.md and models.csv already have `lcb64k_*` columns; they fill in as stage C finishes. Revise ANALYSIS.md when it does.
+**All stages finished on 2026-10-26** (queue 13:36, stage E 16:48, DeepSeek download 17:41, 91 GB). ANALYSIS.md has the write-up.
 
 ### ROCm vs. Vulkan
 
@@ -27,6 +27,14 @@ Quality scores don't depend on the backend (same GGUF, same sampling), so only s
 - Compare with `uv run aibench report --hardware r9700-vulkan --hardware r9700-rocm -s speed-quick -s kernels -s kernels-rocm`.
 - **Result (2026-10-25): stay on Vulkan.** ROCm generation at 8k context is 13–25% slower for five of the six models; only Nemotron Lightning is faster (+8%). Prompt processing is the same or slower, and much slower for Gemma (−43%). llama-bench agrees. Both HumanEval checks passed (100 / 97.5%), so the build itself is fine. RESULTS.md has the table.
 - Worth re-checking only with a rocWMMA build or a newer ROCm/llama.cpp.
+
+### Next
+
+- [ ] **Set up DeepSeek V4 Flash** (below).
+- [ ] **A medium-effort alias in llama-swap.** qwen3.8-27b at `medium` is the best quick-task setting (ANALYSIS.md), but clients must send `chat_template_kwargs`. A `qwen3.8-27b-medium` llama-swap entry with `--chat-template-kwargs '{"reasoning_effort":"medium"}'` would make it a plain model name. It needs a llama-swap restart, so only between runs.
+- [ ] **ThinkingCap at `medium`** on terminal-x3 (~20 min).
+- [ ] **qwen3.8-27b at Q4_K_M** on `livecodebench-64k`, to tell ThinkingCap's fine-tune apart from its quant (~6 h).
+- [ ] **Harder terminal tasks.** terminal-x3 is saturated (100 / 100 / 98.1).
 
 ### DeepSeek V4 Flash
 
@@ -58,7 +66,7 @@ The R9700 sits behind a 4-lane link. The root port supports 16 GT/s, but the lin
   - **Fixed 2026-10-25:** `verify` now restores the starting set of archives before running the script. The self-test passes both untouched and after the solution has been run twice, as a model testing its work would.
   - Re-run for every model on 2026-10-25 (stage B). The task now separates models (from 3/3 down to 0/3), and every failure checked was the model's fault. `dashboard.py` substitutes the new per-task result into terminal-x3; the original score is the "as run" column.
 - [ ] **terminal-x3 is saturated.** With the fix, Strata and qwen3.8-27b score 100% and ThinkingCap 98.1%. The suite can no longer rank the top models; see ANALYSIS.md experiment 3.
-- [ ] **LiveCodeBench is capped by `max_tokens: 32768`.** Answers cut off at the cap count as failures, so these models' LCB scores are understated:
+- [x] **LiveCodeBench is capped by `max_tokens: 32768`.** *Re-run at 64k on Oct 25–26; results in ANALYSIS.md and RESULTS.md.* The original note: Answers cut off at the cap count as failures, so these models' LCB scores are understated:
 
   | model | cut off (of 30) |
   |---|---|
