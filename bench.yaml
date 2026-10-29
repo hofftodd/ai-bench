@@ -79,6 +79,16 @@ models:
     args: [--model, iq3_s, --context, 128k, --vision, "off", --tune, skip]
     max_tokens: 32768          # reasoning model, same budget as the others
 
+  # DeepSeek V4 Flash (284B-A13B MoE), Unsloth UD-Q2_K_XL, via llama-swap. Experts of 34 of the 43
+  # layers stay in RAM (--n-cpu-moe 34, mmap'd), the rest in VRAM; ~9 tok/s decode warm. Needs
+  # ~65 GB of free RAM, so it can't be loaded alongside Strata. Thinking is on by default.
+  deepseek-v4-flash:
+    backend: swap
+    id: deepseek-v4-flash
+    gguf: ~/models/deepseek-v4-flash/UD-Q2_K_XL/DeepSeek-V4-Flash-UD-Q2_K_XL-00001-of-00003.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 1.0}       # DeepSeek's recommended sampling
+
   qwen3.8-27b: &qwen38_27b
     backend: swap
     id: qwen3.8-27b

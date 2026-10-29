@@ -114,7 +114,7 @@ dashboard/
 - RESULTS.md also gets a Vulkan vs ROCm speed table, pairing each model with its `<model>-rocm` twin run under the `-rocm` hardware label.
 - `overnight_status` is one of:
   - `done`: both overnight suites finished.
-  - `running`: the model is in a run with no `finished` timestamp.
+  - `running`: the model is in an unfinished run whose process is still alive on the current boot (run.json records `pid` and `boot_id`; older runs lack them and never count as running).
   - `partial`: only one overnight suite finished.
   - `not run`: no overnight results.
 

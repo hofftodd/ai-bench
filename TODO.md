@@ -30,8 +30,8 @@ Quality scores don't depend on the backend (same GGUF, same sampling), so only s
 
 ### Next
 
-- [ ] **Set up DeepSeek V4 Flash** (below).
-- [ ] **A medium-effort alias in llama-swap.** qwen3.8-27b at `medium` is the best quick-task setting (ANALYSIS.md), but clients must send `chat_template_kwargs`. A `qwen3.8-27b-medium` llama-swap entry with `--chat-template-kwargs '{"reasoning_effort":"medium"}'` would make it a plain model name. It needs a llama-swap restart, so only between runs.
+- [ ] **Finish DeepSeek V4 Flash** (below). `quick` and terminal-x3 are done (ANALYSIS.md). The overnight run's LiveCodeBench was lost to a power outage on 2026-10-28; re-run it alone with `-s livecodebench` (16+ h).
+- [x] **A medium-effort alias in llama-swap.** `qwen3.8-27b-medium` is a llama-swap model now (llama-config `<new>=<base>` variant in models.conf, `--chat-template-kwargs`).
 - [ ] **ThinkingCap at `medium`** on terminal-x3 (~20 min).
 - [ ] **qwen3.8-27b at Q4_K_M** on `livecodebench-64k`, to tell ThinkingCap's fine-tune apart from its quant (~6 h).
 - [ ] **Harder terminal tasks.** terminal-x3 is saturated (100 / 100 / 98.1).
@@ -45,8 +45,8 @@ The 284B mixture-of-experts model that [DwarfStar](https://github.com/antirez/ds
 - **Setup after the download:**
   - Add a llama-swap entry with `--n-cpu-moe`, so attention runs in VRAM and about 65 GB of experts stay in RAM.
   - Smoke-test it, then add `deepseek-v4-flash` to `bench.yaml` with DeepSeek's recommended sampling.
-  - Run `quick` and `overnight`.
-- **Expect** Strata-like speed (CPU-side experts). It can't be loaded alongside Strata.
+  - Run `quick` and `overnight`. *Done except LiveCodeBench.*
+- **Speed:** much slower than Strata: ~9 tok/s generation, 42 tok/s prompt processing (CPU-side experts). It can't be loaded alongside Strata.
 
 ### PCIe link
 

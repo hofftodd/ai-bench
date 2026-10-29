@@ -1,6 +1,6 @@
 # Analysis of the October 2026 runs
 
-An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort). Last updated 2026-10-26 20:45. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
+An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), and a first look at DeepSeek V4 Flash on Oct 27–28. Last updated 2026-10-28 21:00. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
 
 **In short:**
 
@@ -12,6 +12,7 @@ An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b1
 - **Qwen3.8 thinks at maximum effort by default.** Its chat template defaults to `reasoning_effort: xhigh`. At `medium`, qwen3.8-27b finished terminal-x3 twice as fast with 62% fewer tokens (92.6% vs 100%), but LiveCodeBench didn't change at all.
 - **Give reasoning models at least 64k output tokens.** At 32k, a third or more of hard answers are cut off.
 - **Stay on Vulkan.** ROCm is 13–25% slower at generation for most models.
+- **DeepSeek V4 Flash is accurate but very slow here.** 96.3% terminal-x3 and 97.5% HumanEval+, but at ~9 tok/s it took 250 minutes for terminal-x3 (14× ThinkingCap). Its LiveCodeBench run was lost to a power outage.
 
 ---
 
@@ -99,6 +100,25 @@ Qwen3.8's chat template takes `reasoning_effort` (`xhigh`, `medium` or `low`) an
 - **On hard problems it changes nothing.** The model thinks just as long, so the instruction matters for routine work but not when the problem itself demands thought.
 - So `medium` is a good setting for quick, routine agent tasks: qwen3.8 at medium is as fast end-to-end as qwen3.6-35b-a3b (11.7 vs 11.3 min) and scores 11 points higher. Keep `xhigh` for hard problems.
 
+### DeepSeek V4 Flash: first results
+
+DeepSeek V4 Flash (284B total, 13B active) at Unsloth UD-Q2_K_XL (91 GB) runs through llama-swap with the experts of 34 of its 43 layers in system RAM (`--n-cpu-moe 34`, `--threads 8`). It ran `quick` and terminal-x3 on Oct 27–28:
+
+| | deepseek-v4-flash | thinkingcap-qwen3.8-27b | strata |
+|---|---:|---:|---:|
+| terminal-x3 | 96.3% | 98.1% | 100% |
+| terminal-x3 wall time | **250 min** | 17.5 min | 50.8 min |
+| terminal-x3 avg turns | 7.5 | 5.6 | |
+| terminal-x3 avg output per episode | 1,643 tok | 1,229 tok | |
+| HumanEval / HumanEval+ (quick) | 97.5 / 97.5 | 100 / 95 | |
+| generation @8k | 9.0 tok/s | 53.2 tok/s | |
+| prompt processing @8k | 42 tok/s | 902 tok/s | 780 tok/s |
+| time to first token @8k | 197 s | 9.5 s | 10.5 s |
+
+- **Quality is in the top group.** It passed all 6 quick terminal tasks and 52 of 54 terminal-x3 episodes; it lost one run each of `git-bisect` and `log-error-report`. It passed the fixed `backup-rotation` 3/3. Tool calls were clean (0 bad calls), and it never ran out of turns.
+- **Speed rules it out for interactive work.** Prompt processing at 42 tok/s is the real problem: an agent turn that re-reads 8k tokens of context waits over 3 minutes before it writes anything. Generation is also ~6× slower than the 27B dense models.
+- **LiveCodeBench is still missing.** The overnight run was ~8 hours into LCB when a power outage on Oct 28 took the machine down, and LCB results are only written when the suite finishes. About 13 problems had completed by then, with single answers taking up to 3.7 hours at 4 in flight, so a full 30-problem run is likely 16+ hours.
+
 ### Other observations
 
 - **Tool calling is clean everywhere.** There were zero malformed tool calls and zero tool calls written as plain text, across all 540 terminal episodes. llama-swap's chat templates and tool parsers work for every model tested, so `terminal-text` isn't urgent.
@@ -138,7 +158,7 @@ Yes. These are in priority order, by value per GPU-hour:
 8. ~~**Benchmark `gemma-4-e4b`.**~~ *Done Oct 25:* 100% HumanEval (95% HumanEval+), 3 of 6 quick terminal tasks, 85 tok/s generation and the fastest prompt processing measured (4,349 tok/s at 8k, 2.0 s to first token).
 9. ~~**Compare ROCm and Vulkan.**~~ *Done Oct 25:* Vulkan wins (see above).
 10. ~~**Try a lower reasoning effort.**~~ *Done Oct 26 for qwen3.8-27b at `medium`; see section 1.* Next: ThinkingCap at `medium` on terminal-x3 (~20 min) to see whether the two savings stack.
-11. **Benchmark DeepSeek V4 Flash** (downloaded Oct 26, UD-Q2_K_XL, 91 GB) for the escalation role. It needs a llama-swap entry with `--n-cpu-moe` first.
+11. **Finish DeepSeek V4 Flash.** `quick` and terminal-x3 are done (see section 1). LiveCodeBench needs a re-run (16+ h) to compare it with Strata for the escalation role.
 12. **Find out why the PCIe link runs at half speed.** The R9700's x4 link trains at 8 GT/s even under full load, against 16 GT/s supported. It matters most for model loading and RAM-offloaded models (Strata, DeepSeek V4 Flash). It's a BIOS or cable check, not a benchmark.
 
 Not worth the time: more HumanEval+ (every model scores 95–100%), and more runs of qwen3-coder-30b or Laguna.
@@ -167,6 +187,6 @@ Recommendations for this machine (R9700 32 GB, 90 GB RAM, llama-swap), based on 
 **Backend:** keep llama-swap on the Vulkan build.
 
 **Waiting on:**
-- **DeepSeek V4 Flash (284B-A13B)** is downloaded and could challenge Strata for the escalation role. It needs a llama-swap entry and a benchmark run.
+- **DeepSeek V4 Flash (284B-A13B)** scores near the top on terminal-x3 (96.3%) but runs at ~9 tok/s with 197 s to first token at 8k, so it can't be an interactive agent. Whether it beats Strata for the escalation role depends on its LiveCodeBench result, which still has to be re-run.
 - **Inkling Small (276B-A12B)** could too, but it needs mainline llama.cpp support first.
 - **gpt-oss-20b** is configured but hasn't been run.

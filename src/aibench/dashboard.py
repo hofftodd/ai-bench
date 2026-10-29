@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from .report import _fmt
+from .runner import is_alive
 
 OVERNIGHT = ("terminal-x3", "livecodebench")
 
@@ -74,7 +75,7 @@ def build_rows(runs: list[dict[str, Any]], hardware: str | None = None) -> list[
             backend[m] = res["backend"]
             if res["suite"] in OVERNIGHT and m not in order:
                 order.append(m)
-        if not run.get("finished") and run.get("results"):
+        if is_alive(run) and run.get("results"):
             running.add(run["results"][-1]["model"])
 
     rows = []

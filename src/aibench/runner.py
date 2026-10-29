@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 import traceback
 import uuid
@@ -20,6 +21,26 @@ from .config import Config
 from .registry import resolve_backend, resolve_suite
 from .suites.base import RunContext
 from .sysinfo import GiB, GpuSampler, collect_sysinfo, discover_gpus, primary_gpu_summary, sample_all, select_gpus
+
+
+def boot_id() -> str | None:
+    try:
+        return Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+    except OSError:
+        return None
+
+
+def is_alive(run: dict[str, Any]) -> bool:
+    """An unfinished run is still going only if its process survives on this boot (not killed, no reboot)."""
+    if run.get("finished") or not run.get("pid") or run.get("boot_id") != boot_id():
+        return False
+    try:
+        os.kill(run["pid"], 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        pass
+    return True
 
 
 def make_backend(cfg: Config, name: str) -> Backend:
@@ -48,6 +69,7 @@ async def run_benchmark(cfg: Config, model_keys: list[str], suite_keys: list[str
     record: dict[str, Any] = {
         "run_id": run_id, "hardware": hardware or cfg.hardware, "tag": tag, "started": datetime.now().isoformat(),
         "config": str(cfg.path) if cfg.path else None, "limit": limit, "sysinfo": collect_sysinfo(), "results": [],
+        "pid": os.getpid(), "boot_id": boot_id(),   # lets the dashboard tell a live run from a dead one
     }
 
     def save():
