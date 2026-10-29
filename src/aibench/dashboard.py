@@ -11,6 +11,8 @@ from __future__ import annotations
 import csv
 import functools
 import json
+import re
+import struct
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -43,7 +45,62 @@ DETAILS: dict[str, tuple[str, str]] = {
     "terminal_x3_episodes": ("terminal-x3", "episodes"),
     "lcb_problems": ("livecodebench", "problems"),
 }
-COLUMNS = ["model", "backend", "overnight_order", "overnight_status", *METRICS, "terminal_x3_orig_pct", *DETAILS]
+COLUMNS = ["model", "backend", "quant", "overnight_order", "overnight_status", *METRICS, "terminal_x3_orig_pct",
+           *DETAILS]
+
+# Quant names as they appear in GGUF filenames (Unsloth's dynamic quants keep their UD- prefix).
+QUANT_RE = re.compile(r"(?<![A-Za-z0-9])((?:UD-)?(?:IQ\d_(?:XXS|XS|NL|S|M)|TQ\d_\d|Q\d_K(?:_(?:XL|S|M|L))?|Q\d_\d"
+                      r"|MXFP4(?:_MOE)?|NVFP4|BF16|F16|F32))(?![A-Za-z0-9])", re.IGNORECASE)
+# llama.cpp's llama_ftype (include/llama.h), for GGUFs whose filename doesn't name the quant.
+FILE_TYPES = {0: "F32", 1: "F16", 2: "Q4_0", 3: "Q4_1", 7: "Q8_0", 8: "Q5_0", 9: "Q5_1", 10: "Q2_K", 11: "Q3_K_S",
+              12: "Q3_K_M", 13: "Q3_K_L", 14: "Q4_K_S", 15: "Q4_K_M", 16: "Q5_K_S", 17: "Q5_K_M", 18: "Q6_K",
+              19: "IQ2_XXS", 20: "IQ2_XS", 21: "Q2_K_S", 22: "IQ3_XS", 23: "IQ3_XXS", 24: "IQ1_S", 25: "IQ4_NL",
+              26: "IQ3_S", 27: "IQ3_M", 28: "IQ2_S", 29: "IQ2_M", 30: "IQ4_XS", 31: "IQ1_M", 32: "BF16",
+              36: "TQ1_0", 37: "TQ2_0", 38: "MXFP4_MOE", 39: "NVFP4", 40: "Q1_0", 41: "Q2_0"}
+
+
+def _gguf_file_type(path: Path) -> int | None:
+    """general.file_type from a GGUF header, or None if it can't be read."""
+    scalar = {0: "B", 1: "b", 2: "H", 3: "h", 4: "I", 5: "i", 6: "f", 7: "?", 10: "Q", 11: "q", 12: "d"}
+    try:
+        with path.open("rb") as f:
+            if f.read(4) != b"GGUF":
+                return None
+            _version, _tensors, n_kv = struct.unpack("<IQQ", f.read(20))
+
+            def string() -> str:
+                (n,) = struct.unpack("<Q", f.read(8))
+                return f.read(n).decode(errors="replace")
+
+            def skip(t: int) -> None:
+                if t == 8:
+                    string()
+                elif t == 9:
+                    et, n = struct.unpack("<IQ", f.read(12))
+                    for _ in range(n):
+                        skip(et)
+                else:
+                    f.read(struct.calcsize(scalar[t]))
+
+            for _ in range(n_kv):
+                key = string()
+                (t,) = struct.unpack("<I", f.read(4))
+                if key == "general.file_type":
+                    return struct.unpack("<" + scalar[t], f.read(struct.calcsize(scalar[t])))[0]
+                skip(t)
+    except (OSError, KeyError, struct.error):
+        return None
+    return None
+
+
+@functools.cache
+def quant(model_path: str | None) -> str:
+    """The quant a GGUF was made with: from its filename, else from its header."""
+    if not model_path:
+        return ""
+    if m := QUANT_RE.search(Path(model_path).name):
+        return m.group(1).upper()
+    return FILE_TYPES.get(_gguf_file_type(Path(model_path)), "")
 
 # terminal-x3 shipped with a broken backup-rotation task (it failed any model that tested its script).
 # The fixed task was re-run on its own; its per-task result replaces the old one in terminal_x3_pass_pct.
@@ -61,6 +118,7 @@ def build_rows(runs: list[dict[str, Any]], hardware: str | None = None) -> list[
     latest: dict[str, dict[str, dict]] = {}    # model -> suite -> result
     run_no: dict[tuple[str, str], int] = {}     # (model, suite) -> index of the run its latest result is from
     backend: dict[str, str] = {}
+    model_path: dict[str, str] = {}
     order: list[str] = []
     running: set[str] = set()
     for i, run in enumerate(runs):   # oldest first, so later results win
@@ -73,6 +131,8 @@ def build_rows(runs: list[dict[str, Any]], hardware: str | None = None) -> list[
             latest.setdefault(m, {})[res["suite"]] = res
             run_no[m, res["suite"]] = i
             backend[m] = res["backend"]
+            if path := (res.get("model_info") or {}).get("model_path"):
+                model_path[m] = path
             if res["suite"] in OVERNIGHT and m not in order:
                 order.append(m)
         if is_alive(run) and run.get("results"):
@@ -92,6 +152,7 @@ def build_rows(runs: list[dict[str, Any]], hardware: str | None = None) -> list[
         row: dict[str, Any] = {
             "model": m,
             "backend": backend[m],
+            "quant": quant(model_path.get(m)),
             "overnight_order": order.index(m) + 1 if m in order else "",
             "overnight_status": status,
         }
@@ -182,7 +243,8 @@ def _table(rows: list[dict[str, Any]], cols: dict[str, str], higher: dict[str, b
         if len(vals) > 1:
             best[c] = max(vals) if hi else min(vals)
     lines = ["| " + " | ".join(cols.values()) + " |",
-             "|" + "|".join(":---" if c in ("model", "backend", "overnight_status") else "---:" for c in cols) + "|"]
+             "|" + "|".join(":---" if c in ("model", "backend", "quant", "overnight_status") else "---:"
+                            for c in cols) + "|"]
     for r in rows:
         cells = []
         for c in cols:
@@ -234,20 +296,22 @@ def write_markdown(rows: list[dict[str, Any]], out: Path, hardware: str,
         "with a 32k-token budget; **LCB 64k** re-runs the same problems with 64k for models that ran out of room.\n\n",
         _bar_chart("terminal-x3 pass rate (%)", "pass %", done, "terminal_x3_pass_pct", 100), "\n",
         _bar_chart("LiveCodeBench pass@1 (%)", "pass@1 %", done, "lcb_pass_pct", 100), "\n",
-        _table(rows, {"model": "Model", "overnight_status": "Status", "terminal_x3_pass_pct": "terminal-x3 %",
-                      "terminal_x3_orig_pct": "as run %", "lcb_pass_pct": "LCB pass@1 %",
+        _table(rows, {"model": "Model", "quant": "Quant", "overnight_status": "Status",
+                      "terminal_x3_pass_pct": "terminal-x3 %", "terminal_x3_orig_pct": "as run %", "lcb_pass_pct": "LCB pass@1 %",
                       "lcb_truncated": "LCB cut off", "lcb64k_pass_pct": "LCB 64k %",
                       "lcb64k_truncated": "64k cut off", "terminal_x3_wall_min": "terminal-x3 min",
                       "lcb_wall_min": "LCB min"},
                {"terminal_x3_pass_pct": True, "lcb_pass_pct": True, "lcb64k_pass_pct": True}),
         "\n\"Cut off\" counts LiveCodeBench answers that hit `max_tokens` before finishing. Those score as "
-        "failures, so the cap pulls down models that think at length. [TODO.md](TODO.md) has more caveats.\n",
+        "failures, so the cap pulls down models that think at length. \"Quant\" is the GGUF quantization each model "
+        "ran at; `UD-` marks Unsloth Dynamic quants, which keep sensitive layers at higher precision. "
+        "[TODO.md](TODO.md) has more caveats.\n",
         "\n## Speed and quick profile\n\n",
         "Server-measured speeds from each model's latest `speed-quick` run (llama.cpp timings), plus a 40-problem "
         "HumanEval+ subset and six terminal tasks.\n\n",
         _bar_chart("Generation speed at 8k context (tok/s)", "tok/s", speed, "tg8k_tok_s"), "\n",
-        _table(rows, {"model": "Model", "backend": "Backend", "humaneval_quick_pass_pct": "HumanEval %",
-                      "humaneval_quick_plus_pct": "HumanEval+ %", "terminal_quick_pass_pct": "Terminal %",
+        _table(rows, {"model": "Model", "backend": "Backend", "quant": "Quant",
+                      "humaneval_quick_pass_pct": "HumanEval %", "humaneval_quick_plus_pct": "HumanEval+ %", "terminal_quick_pass_pct": "Terminal %",
                       "pp512_tok_s": "Prompt 512 tok/s", "tg512_tok_s": "Gen @512 tok/s",
                       "pp8k_tok_s": "Prompt 8k tok/s", "tg8k_tok_s": "Gen @8k tok/s", "ttft8k_s": "TTFT @8k s"},
                {"humaneval_quick_plus_pct": True, "terminal_quick_pass_pct": True, "pp512_tok_s": True,
