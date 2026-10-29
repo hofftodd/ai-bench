@@ -54,6 +54,8 @@ models:
     params: {temperature: 1.0, top_p: 0.95}      # same family/card guidance as Bolt
 
   # Nemotron 3.5 Bolt 74B-A9B (Oct 2026): NVIDIA's 24GB GGUF + its DFlash drafter, via llama-swap.
+  # It's IQ2_XXS by design: NVIDIA quantized the experts to 2-bit and distilled to recover accuracy, so it isn't
+  # a cut-down quant. Unsloth's higher quants (up to Q8_0) are made from the BF16 release without that step.
   nemotron-bolt:
     backend: swap
     id: nemotron-3.5-bolt-74b-a9b
