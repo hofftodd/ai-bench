@@ -30,7 +30,7 @@ Quality scores don't depend on the backend (same GGUF, same sampling), so only s
 
 ### Next
 
-- [ ] **Finish DeepSeek V4 Flash** (below). `quick` and terminal-x3 are done (ANALYSIS.md). The overnight run's LiveCodeBench was lost to a power outage on 2026-10-28; re-run it alone with `-s livecodebench` (16+ h).
+- [ ] **Finish DeepSeek V4 Flash** (below). `quick`, terminal-x3 and LiveCodeBench at 32k (60.0%, re-run after the 2026-10-28 power outage) are done (ANALYSIS.md). `livecodebench-64k` started 2026-10-29 with the server context raised to 200,704 (3 × 64k); write it up when it finishes.
 - [x] **A medium-effort alias in llama-swap.** `qwen3.8-27b-medium` is a llama-swap model now (llama-config `<new>=<base>` variant in models.conf, `--chat-template-kwargs`).
 - [ ] **ThinkingCap at `medium`** on terminal-x3 (~20 min).
 - [ ] **qwen3.8-27b at Q4_K_M** on `livecodebench-64k`, to tell ThinkingCap's fine-tune apart from its quant (~6 h).

@@ -1,6 +1,6 @@
 # Analysis of the October 2026 runs
 
-An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), and a first look at DeepSeek V4 Flash on Oct 27–28. Last updated 2026-10-28 21:00. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
+An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), and DeepSeek V4 Flash on Oct 27–29. Last updated 2026-10-29 21:00. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
 
 **In short:**
 
@@ -12,7 +12,7 @@ An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b1
 - **Qwen3.8 thinks at maximum effort by default.** Its chat template defaults to `reasoning_effort: xhigh`. At `medium`, qwen3.8-27b finished terminal-x3 twice as fast with 62% fewer tokens (92.6% vs 100%), but LiveCodeBench didn't change at all.
 - **Give reasoning models at least 64k output tokens.** At 32k, a third or more of hard answers are cut off.
 - **Stay on Vulkan.** ROCm is 13–25% slower at generation for most models.
-- **DeepSeek V4 Flash is accurate but very slow here.** 96.3% terminal-x3 and 97.5% HumanEval+, but at ~9 tok/s it took 250 minutes for terminal-x3 (14× ThinkingCap). Its LiveCodeBench run was lost to a power outage.
+- **DeepSeek V4 Flash is accurate but very slow here, and doesn't beat Strata.** 96.3% terminal-x3 and 97.5% HumanEval+, but at ~9 tok/s it took 250 minutes for terminal-x3 (14× ThinkingCap). LiveCodeBench at 32k: 60.0% in 15 hours, against Strata's 83.3% in 1.9 hours, with 9 answers cut off. A 64k run is under way.
 
 ---
 
@@ -44,6 +44,7 @@ An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b1
 | flint | 63.3 | 7 | 19/23 (83%) |
 | gemma-4-26b | 73.3 | 2 | 22/28 (79%) |
 | strata | 83.3 | 0 | 25/30 (83%) |
+| deepseek-v4-flash | 60.0 | 9 | 18/21 (86%) |
 | laguna-xs-2.1 | 33.3 | 7 | 10/23 (43%) |
 
 Most cut-offs are on the hard problems, so not every cut-off answer would pass with more room. Still, the 32k LCB ranking among the reasoning models was mostly a ranking of **token efficiency**, not problem-solving ability.
@@ -117,7 +118,20 @@ DeepSeek V4 Flash (284B total, 13B active) at Unsloth UD-Q2_K_XL (91 GB) runs th
 
 - **Quality is in the top group.** It passed all 6 quick terminal tasks and 52 of 54 terminal-x3 episodes; it lost one run each of `git-bisect` and `log-error-report`. It passed the fixed `backup-rotation` 3/3. Tool calls were clean (0 bad calls), and it never ran out of turns.
 - **Speed rules it out for interactive work.** Prompt processing at 42 tok/s is the real problem: an agent turn that re-reads 8k tokens of context waits over 3 minutes before it writes anything. Generation is also ~6× slower than the 27B dense models.
-- **LiveCodeBench is still missing.** The overnight run was ~8 hours into LCB when a power outage on Oct 28 took the machine down, and LCB results are only written when the suite finishes. About 13 problems had completed by then, with single answers taking up to 3.7 hours at 4 in flight, so a full 30-problem run is likely 16+ hours.
+- **LiveCodeBench at 32k: 60.0%, well behind Strata.** The overnight run's LCB was lost to a power outage on Oct 28, so it was re-run alone on Oct 28–29 (run `20261028-205421-247e`):
+
+  | LCB at 32k | deepseek-v4-flash | strata | thinkingcap-qwen3.8-27b |
+  |---|---:|---:|---:|
+  | pass@1 | 60.0% | **83.3%** | 63.3% |
+  | medium / hard | 12/15 · 6/15 | | |
+  | cut off | 9 (7 hard) | 0 | 11 |
+  | passed when not cut off | 18/21 (86%) | 25/30 (83%) | 18/19 (95%) |
+  | avg output | 18.2k tok | 16.5k tok | |
+  | run time | **15.2 h** | 1.9 h | 2.6 h |
+
+  - It belongs with the models the 32k cap holds back: 7 of its 12 misses were hard problems cut off at 32,768 tokens, each after 3.4–3.7 hours. Of the answers it finished, it got 18 of 21 right, the same as the others.
+  - With 4 requests in flight it decoded at only ~2.7 tok/s each, so one 32k answer takes over 3 hours.
+  - Strata had no cut-offs at 32k, so a bigger budget can't change its score. DeepSeek would need to gain more than 23 points at 64k to match it, which no model has done (the best gain was ThinkingCap's 17). **A 64k run started on Oct 29** to settle it; it will likely take more than 20 hours.
 
 ### Other observations
 
@@ -159,7 +173,7 @@ Yes. These are in priority order, by value per GPU-hour:
 8. ~~**Benchmark `gemma-4-e4b`.**~~ *Done Oct 25:* 100% HumanEval (95% HumanEval+), 3 of 6 quick terminal tasks, 85 tok/s generation and the fastest prompt processing measured (4,349 tok/s at 8k, 2.0 s to first token).
 9. ~~**Compare ROCm and Vulkan.**~~ *Done Oct 25:* Vulkan wins (see above).
 10. ~~**Try a lower reasoning effort.**~~ *Done Oct 26 for qwen3.8-27b at `medium`; see section 1.* Next: ThinkingCap at `medium` on terminal-x3 (~20 min) to see whether the two savings stack.
-11. **Finish DeepSeek V4 Flash.** `quick` and terminal-x3 are done (see section 1). LiveCodeBench needs a re-run (16+ h) to compare it with Strata for the escalation role.
+11. **Finish DeepSeek V4 Flash.** `quick`, terminal-x3 and LiveCodeBench at 32k (60.0%) are done (see section 1). `livecodebench-64k` started Oct 29 (20+ h).
 12. **Find out why the PCIe link runs at half speed.** The R9700's x4 link trains at 8 GT/s even under full load, against 16 GT/s supported. It matters most for model loading and RAM-offloaded models (Strata, DeepSeek V4 Flash). It's a BIOS or cable check, not a benchmark.
 
 Not worth the time: more HumanEval+ (every model scores 95–100%), and more runs of qwen3-coder-30b or Laguna.
@@ -188,6 +202,6 @@ Recommendations for this machine (R9700 32 GB, 90 GB RAM, llama-swap), based on 
 **Backend:** keep llama-swap on the Vulkan build.
 
 **Waiting on:**
-- **DeepSeek V4 Flash (284B-A13B)** scores near the top on terminal-x3 (96.3%) but runs at ~9 tok/s with 197 s to first token at 8k, so it can't be an interactive agent. Whether it beats Strata for the escalation role depends on its LiveCodeBench result, which still has to be re-run.
+- **DeepSeek V4 Flash (284B-A13B)** scores near the top on terminal-x3 (96.3%) but runs at ~9 tok/s with 197 s to first token at 8k, so it can't be an interactive agent. At 32k it scored 60.0% on LiveCodeBench against Strata's 83.3%, eight times slower, so Strata stays the escalation pick unless the 64k run closes the gap.
 - **Inkling Small (276B-A12B)** could too, but it needs mainline llama.cpp support first.
 - **gpt-oss-20b** is configured but hasn't been run.
