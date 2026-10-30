@@ -33,7 +33,7 @@ Quality scores don't depend on the backend (same GGUF, same sampling), so only s
 - [ ] **Finish DeepSeek V4 Flash** (below). `quick`, terminal-x3 and LiveCodeBench at 32k (60.0%, re-run after the 2026-10-28 power outage) are done (ANALYSIS.md). `livecodebench-64k` started 2026-10-29 with the server context raised to 200,704 (3 × 64k); write it up when it finishes.
 - [x] **A medium-effort alias in llama-swap.** `qwen3.8-27b-medium` is a llama-swap model now (llama-config `<new>=<base>` variant in models.conf, `--chat-template-kwargs`).
 - [ ] **ThinkingCap at `medium`** on terminal-x3 (~20 min).
-- [ ] **qwen3.8-27b at Q4_K_M** on `livecodebench-64k`, to tell ThinkingCap's fine-tune apart from its quant (~6 h).
+- [ ] **ThinkingCap at the base's UD-Q4_K_XL**, to tell its fine-tune apart from its quant. No UD-Q4_K_XL of ThinkingCap exists, so it's bottlecap's f16 quantized locally with the base file's exact per-tensor types and Unsloth's imatrix (model `thinkingcap-qwen3.8-27b-udq4kxl`). It runs `overnight`, `livecodebench-64k` and `speed-quick` (~8 h), queued 2026-10-29 behind the DeepSeek 64k run (`logs/thinkingcap-udq4kxl.sh`).
 - [ ] **Harder terminal tasks.** terminal-x3 is saturated (100 / 100 / 98.1).
 
 ### DeepSeek V4 Flash

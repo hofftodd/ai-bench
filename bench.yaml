@@ -116,6 +116,12 @@ models:
     gguf: ~/models/thinkingcap-qwen3.8-27b/ThinkingCap-Qwen3.8-27B-Q4_K_M.gguf
     max_tokens: 32768
     params: {temperature: 0.6, top_p: 0.95, top_k: 20}
+  # ThinkingCap at the base's quant. No UD-Q4_K_XL of it exists, so this is bottlecap's f16 quantized
+  # locally with the exact per-tensor types of Qwen3.8-27B-UD-Q4_K_XL and Unsloth's imatrix for it.
+  thinkingcap-qwen3.8-27b-udq4kxl:
+    <<: *thinkingcap_qwen38_27b
+    id: thinkingcap-qwen3.8-27b-udq4kxl
+    gguf: ~/models/thinkingcap-qwen3.8-27b-udq4kxl/ThinkingCap-Qwen3.8-27B-UD-Q4_K_XL-local.gguf
   qwen3.6-35b-a3b: &qwen36_35b_a3b
     backend: swap
     id: qwen3.6-35b-a3b
