@@ -88,6 +88,8 @@ async def run_benchmark(cfg: Config, model_keys: list[str], suite_keys: list[str
                 backends[model.backend] = make_backend(cfg, model.backend)
             be = backends[model.backend]
             console.rule(f"[bold cyan]{model.key}[/]  ({model.id} via {be.name}/{be.type_name})")
+            record["current"] = {"model": model.key, "backend": be.name}   # shows as running before its first result
+            save()
 
             try:
                 await be.free_gpu(model)
@@ -170,6 +172,7 @@ async def run_benchmark(cfg: Config, model_keys: list[str], suite_keys: list[str
     finally:
         for be in backends.values():
             await be.close()
+        record.pop("current", None)
         record["finished"] = datetime.now().isoformat()
         save()
     return out_dir

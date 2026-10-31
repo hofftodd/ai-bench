@@ -44,6 +44,9 @@ def cmd_run(args):
     console.print()
     cols, rows = report.build(report.load_runs([out]))
     report.render_table(cols, rows, console)
+    if args.dashboard and not args.limit:   # the dashboard skips --limit runs, so there'd be nothing new
+        console.print()
+        rebuild_dashboard(cfg)
 
 
 def cmd_report(args):
@@ -145,13 +148,12 @@ def cmd_selftest(args):
     sys.exit(0 if asyncio.run(selftest(tasks, getattr(s, "image", None), console)) else 1)
 
 
-def cmd_dashboard(args):
-    """Rebuild dashboard/data/ from results/, then optionally serve dashboard/ over HTTP."""
+def rebuild_dashboard(cfg, root: Path | None = None, hardware: str | None = None) -> Path:
+    """Rebuild dashboard/data/ and RESULTS.md from results/; returns the dashboard directory."""
     from . import dashboard
 
-    cfg = _cfg(args)
-    root = Path(args.dir) if args.dir else cfg.base_dir / "dashboard"
-    hardware = args.hardware or cfg.hardware   # one box/backend per dashboard; ROCm runs carry another label
+    root = root or cfg.base_dir / "dashboard"
+    hardware = hardware or cfg.hardware   # one box/backend per dashboard; ROCm runs carry another label
     runs = report.load_runs([cfg.results_dir])
     rows = dashboard.build_rows(runs, hardware=hardware)
     out = dashboard.write_data(rows, root / "data")
@@ -160,6 +162,15 @@ def cmd_dashboard(args):
     compare = dashboard.compare_rows(runs, hardware, other) if other != hardware else []
     md = dashboard.write_markdown(rows, cfg.base_dir / "RESULTS.md", hardware, compare, other)
     console.print(f"wrote {md}")
+    return root
+
+
+def cmd_dashboard(args):
+    """Rebuild dashboard/data/ from results/, then optionally serve dashboard/ over HTTP."""
+    from . import dashboard
+
+    cfg = _cfg(args)
+    root = rebuild_dashboard(cfg, Path(args.dir) if args.dir else None, args.hardware)
     if args.serve:
         dashboard.serve(root, args.host, args.port)
 
@@ -179,6 +190,8 @@ def main(argv=None):
     r.add_argument("-n", "--limit", type=int, help="only the first N problems of each coding suite (quick runs)")
     r.add_argument("--hardware", help="override the hardware label for this run")
     r.add_argument("--tag", help="free-form tag stored with the run")
+    r.add_argument("--no-dashboard", dest="dashboard", action="store_false",
+                   help="don't rebuild dashboard/data/ and RESULTS.md when the run ends")
     r.set_defaults(fn=cmd_run)
 
     rp = sub.add_parser("report", help="compare stored results")

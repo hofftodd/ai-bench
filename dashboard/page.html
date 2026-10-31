@@ -61,9 +61,9 @@
 
   <section class="rb-tiles" id="headline">
     <div class="rb-tile">
-      <div class="rb-lbl">Overnight run progress</div>
+      <div class="rb-lbl">Models with full results</div>
       <div class="rb-big"><span data-source="summary" data-row="0" data-field="done" class="dash-skeleton">—</span><span class="rb-unit"> of <span data-source="summary" data-row="0" data-field="total">—</span></span></div>
-      <div class="rb-sub">models finished</div>
+      <div class="rb-sub">both overnight suites done</div>
     </div>
     <div class="rb-tile">
       <div class="rb-lbl">Best terminal-x3 pass rate</div>
@@ -76,16 +76,16 @@
       <div class="rb-sub" data-source="summary" data-row="0" data-field="best_lcb_model">—</div>
     </div>
     <div class="rb-tile">
-      <div class="rb-lbl">Benchmark time so far</div>
+      <div class="rb-lbl">Total benchmark time</div>
       <div class="rb-big"><span data-source="summary" data-row="0" data-field="wall_h" class="dash-skeleton">—</span><span class="rb-unit"> h</span></div>
-      <div class="rb-sub">finished suites only</div>
+      <div class="rb-sub">terminal-x3 + LiveCodeBench, models with full results</div>
     </div>
   </section>
 
   <section class="rb-card" id="progress">
     <div class="rb-card-head">
-      <h2>Overnight run order</h2>
-      <p class="rb-note">Profile <b>overnight</b>: terminal-x3 then LiveCodeBench for each model, one model at a time on the R9700.</p>
+      <h2>Models tested</h2>
+      <p class="rb-note">In the order they first ran the <b>overnight</b> profile (terminal-x3, then LiveCodeBench), one model at a time on the R9700. "partial" means only one of the two suites has run.</p>
     </div>
     <ol class="rb-steps" id="steps" data-source="models"></ol>
   </section>
@@ -94,7 +94,7 @@
     <section class="rb-card" id="overnight-chart">
       <div class="rb-card-head">
         <h2>Overnight scores</h2>
-        <p class="rb-note">Finished models only. terminal-x3 repeats every agentic shell task three times; LiveCodeBench is an even sample of medium and hard v6 problems. Hover a model for counts.</p>
+        <p class="rb-note">Models with full results only. terminal-x3 repeats every agentic shell task three times; LiveCodeBench is an even sample of medium and hard v6 problems. Hover a model for counts.</p>
       </div>
       <div class="rb-legend" data-source="models">
         <span><i class="rb-sw" id="sw0"></i>terminal-x3 pass</span>
@@ -166,8 +166,8 @@
 <script>
 dash.calc('summary', {
   inputs: ['models'],
-  title: 'Overnight run summary',
-  description: 'Counts finished models, picks the best overnight score per suite, and adds up finished suite time in hours.',
+  title: 'Leaderboard summary',
+  description: 'Counts models with both overnight suites done, picks the best overnight score per suite, and adds up their suite time in hours.',
   fn: (models) => {
     const n = (v) => (v === '' || v == null ? null : Number(v));
     const done = models.filter((m) => m.overnight_status === 'done');
@@ -231,13 +231,13 @@ dash.calc('summary', {
     const m = (f, bold) => span(show(r[f]), { 'data-source': 'summary', 'data-row': '0', 'data-field': f }, bold);
     const t = (x) => document.createTextNode(x);
     if (r.best_term_model && r.best_term_model === r.best_lcb_model) {
-      p.append(m('best_term_model', true), t(' leads both overnight suites so far: '), m('best_term'),
+      p.append(m('best_term_model', true), t(' leads both overnight suites: '), m('best_term'),
         t('% on terminal-x3 and '), m('best_lcb'), t('% on LiveCodeBench. '));
     } else if (r.best_term_model) {
       p.append(m('best_term_model', true), t(' leads terminal-x3 at '), m('best_term'), t('%; '),
         m('best_lcb_model', true), t(' leads LiveCodeBench at '), m('best_lcb'), t('%. '));
     }
-    p.append(m('done'), t(' of '), m('total'), t(' models are finished'));
+    p.append(m('done'), t(' of '), m('total'), t(' models have full results'));
     if (r.running) p.append(t('; '), m('running', true), t(' is running now.'));
     else p.append(t('.'));
   }

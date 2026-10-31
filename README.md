@@ -87,7 +87,7 @@ uv run aibench dashboard --serve               # ...and serve it at http://local
 uv run aibench dashboard --serve --host 0.0.0.0 --port 9000   # reachable from the LAN
 ```
 
-The same command writes [RESULTS.md](RESULTS.md), the same charts and tables as Markdown with Mermaid charts, which GitHub renders. `dashboard/data/models.csv` and `RESULTS.md` are committed, so the published repo shows the latest results without needing `results/`. Commit both after a run to publish new numbers.
+The same command writes [RESULTS.md](RESULTS.md), the same charts and tables as Markdown with Mermaid charts, which GitHub renders. `aibench run` also rebuilds both when it finishes (skip it with `--no-dashboard`; runs with `-n` never rebuild, and the dashboard ignores them so a smoke test can't replace a full score). `dashboard/data/models.csv` and `RESULTS.md` are committed, so the published repo shows the latest results without needing `results/`. Commit both after a run to publish new numbers.
 
 Any static file server works too, once the data has been built: `python3 -m http.server -d dashboard 8765`. Opening `index.html` straight from disk (`file://`) won't work, because the page loads its data with `fetch`. It has no external dependencies (d3 is vendored), so it works offline.
 
@@ -187,6 +187,10 @@ Put tasks in a JSONL file such as `tasks/example.jsonl`, one task per line:
 Write tasks as YAML (`instruction`, `setup`, `verify`, `solution`; see the files in `src/aibench/suites/terminal_tasks/`), put them in a directory, and point a terminal suite at it with `tasks_dir:`.
 
 `uv run aibench selftest` checks every task without a model: `verify` must fail on the untouched setup and pass after the reference solution.
+
+### Tests
+
+`uv run pytest` runs the unit tests in `tests/` (report and dashboard building, from small run.json-shaped fixtures). They need no model, GPU or Docker.
 
 ### Plugins
 

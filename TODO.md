@@ -96,11 +96,9 @@ The R9700 sits behind a 4-lane link. The root port supports 16 GT/s, but the lin
 
 ## Tooling and housekeeping
 
-- [ ] **Add tests.** The only automated check is `aibench selftest` for terminal tasks. Unit tests for `report.build` and `dashboard.build_rows`, using a small fixture `run.json`, would catch regressions cheaply.
-- [ ] **Refresh the dashboard automatically.** Today `uv run aibench dashboard` is run by hand after each run, `RESULTS.md` and `models.csv` are committed by hand, and the hosted copy is updated from a Claude Code session. Options:
-  - Rebuild `dashboard/data/` at the end of every `aibench run`.
-  - Add a `post_run:` hook to `bench.yaml`.
-- [ ] **Delete the old CSVs from the hosted dashboard.** Assets `03899cd1dfb17c0d936342a8fee9247c` and `8cd1cb731c334cd75420d31cfe97c9ac` are no longer referenced. Removing it was blocked by a permission prompt on 2026-10-25.
-- [ ] **Update the dashboard's wording.** It still describes the overnight sweep as in progress ("so far", "Overnight run progress"). Rewrite it as a standing leaderboard now that all ten models have finished.
-- [ ] **Make "running" detection more reliable.** `dashboard.py` marks a model as running only if it has a result in a run with no `finished` timestamp, so a model still on its first suite isn't shown yet. Writing the current model into `run.json` before its first suite would fix this.
-- [ ] **Upgrade the `hf` CLI.** It's on 1.18.0 and 2.3.0 is available. Also note that `hf download` treats a second `--include` pattern as a filename, so pass multiple patterns to one flag, or run separate downloads.
+- [x] **Add tests.** *Done 2026-10-31:* `uv run pytest` covers `report.build`/`load_runs` and `dashboard.build_rows`/`quant`/`write_data`/`write_markdown` (16 tests, fixtures in `tests/conftest.py`).
+- [x] **Refresh the dashboard automatically.** *Done 2026-10-31:* `aibench run` rebuilds `dashboard/data/` and RESULTS.md when it ends (`--no-dashboard` to skip; never after `-n` runs, which the dashboard now ignores). Committing and the hosted copy are still manual.
+- [ ] **Delete the old CSVs from the hosted dashboard.** Seven old copies of `models.csv` were no longer referenced. Two were deleted on 2026-10-31, and the permission check blocked the other five: `03899cd1dfb17c0d936342a8fee9247c`, `8cd1cb731c334cd75420d31cfe97c9ac`, `447e24477dac7746f2dec1fc91085ac5`, `c3e714fc68358e7ce75da30eb51e55a9`, `a45f3dcfb04957885c7f09c1669cbb74`. Only `datasets/models`' current CSV is in use.
+- [x] **Update the dashboard's wording.** *Done 2026-10-31* (tiles, the model list and the summary line now read as a standing leaderboard).
+- [x] **Make "running" detection more reliable.** *Done 2026-10-31:* the runner records `current` in run.json. Before, `dashboard.py` marked a model as running only once it had a result, so a model still on its first suite didn't show.
+- [x] **Upgrade the `hf` CLI.** *Done 2026-10-31:* 2.4.0 (hf_xet 1.8.0). It was on 1.18.0, whose xet download stalled on 2026-10-29. Also note that `hf download` treats a second `--include` pattern as a filename, so pass multiple patterns to one flag, or run separate downloads.

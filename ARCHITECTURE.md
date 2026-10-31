@@ -109,13 +109,14 @@ dashboard/
 `dashboard.py` builds `models.csv`, one row per model, from `results/`:
 
 - Overnight metrics come from `terminal-x3` and `livecodebench`. Quick-profile metrics come from `speed-quick`, `humaneval-quick` and `terminal-quick`.
+- Runs made with `--limit` are skipped, so a smoke test never replaces a full score.
 - `overnight_order` is the order in which models first ran an overnight suite.
 - `quant` is read from the GGUF filename of the model's latest result (`model_info.model_path`), e.g. `UD-Q4_K_XL`. When the filename doesn't name one, it falls back to `general.file_type` in the GGUF header, which is the file's nominal type (a custom mix such as Nemotron Bolt's reports its base type, IQ2_XXS).
 - `terminal_x3_pass_pct` substitutes the re-run of the fixed `backup-rotation` task (suite `terminal-backup-rotation`) when a model has one; `terminal_x3_orig_pct` keeps the score as run.
 - RESULTS.md also gets a Vulkan vs ROCm speed table, pairing each model with its `<model>-rocm` twin run under the `-rocm` hardware label.
 - `overnight_status` is one of:
   - `done`: both overnight suites finished.
-  - `running`: the model is in an unfinished run whose process is still alive on the current boot (run.json records `pid` and `boot_id`; older runs lack them and never count as running).
+  - `running`: the model is in an unfinished run whose process is still alive on the current boot (run.json records `pid` and `boot_id`; older runs lack them and never count as running). The runner writes the model it's on into run.json as `current` before its first suite, so a model shows as running even before it has a result.
   - `partial`: only one overnight suite finished.
   - `not run`: no overnight results.
 

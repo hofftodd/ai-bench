@@ -114,7 +114,9 @@ def _rescore(x3: dict, fix: dict) -> float:
 
 
 def build_rows(runs: list[dict[str, Any]], hardware: str | None = None) -> list[dict[str, Any]]:
-    """Latest successful result per (model, suite); overnight order is when a model first ran an overnight suite."""
+    """Latest successful result per (model, suite); overnight order is when a model first ran an overnight suite.
+
+    Runs made with --limit (smoke tests on a few problems) are skipped so they never replace a full score."""
     latest: dict[str, dict[str, dict]] = {}    # model -> suite -> result
     run_no: dict[tuple[str, str], int] = {}     # (model, suite) -> index of the run its latest result is from
     backend: dict[str, str] = {}
@@ -122,7 +124,7 @@ def build_rows(runs: list[dict[str, Any]], hardware: str | None = None) -> list[
     order: list[str] = []
     running: set[str] = set()
     for i, run in enumerate(runs):   # oldest first, so later results win
-        if hardware and run.get("hardware") != hardware:
+        if hardware and run.get("hardware") != hardware or run.get("limit"):
             continue
         for res in run.get("results", []):
             if res.get("error"):
@@ -135,12 +137,17 @@ def build_rows(runs: list[dict[str, Any]], hardware: str | None = None) -> list[
                 model_path[m] = path
             if res["suite"] in OVERNIGHT and m not in order:
                 order.append(m)
-        if is_alive(run) and run.get("results"):
+        if not is_alive(run):
+            continue
+        if cur := run.get("current"):
+            running.add(cur["model"])
+            backend.setdefault(cur["model"], cur["backend"])
+        elif run.get("results"):   # runs from before the runner recorded `current`
             running.add(run["results"][-1]["model"])
 
     rows = []
-    for m in order + sorted(set(latest) - set(order)):
-        suites = latest[m]
+    for m in order + sorted((set(latest) | running) - set(order)):
+        suites = latest.get(m, {})
         if all(s in suites for s in OVERNIGHT):
             status = "done"
         elif m in running:
