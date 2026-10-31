@@ -1,6 +1,6 @@
 # Analysis of the October 2026 runs
 
-An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), and DeepSeek V4 Flash on Oct 27–29. Last updated 2026-10-29 21:00. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
+An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), DeepSeek V4 Flash on Oct 27–30, and ThinkingCap at its base model's quant on Oct 30–31. Last updated 2026-10-31 10:00. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
 
 **In short:**
 
@@ -8,11 +8,11 @@ An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b1
 - Two benchmark problems distorted the top of the table, and both are now dealt with:
   - One terminal task was broken, capping everyone at 94.4%. With it fixed, **Strata and qwen3.8-27b score 100%** on terminal-x3 and ThinkingCap 98.1%. The suite is now saturated at the top and needs harder tasks.
   - LiveCodeBench at 32k mostly measured who finishes thinking in time. At 64k most reasoning models land at 63–67%, within noise of each other, while **ThinkingCap (80%)** and **Strata (83.3%)** pull clear.
-- **ThinkingCap is the best model that fits in VRAM:** 98.1% terminal-x3, 80% LiveCodeBench at 64k, and 28% fewer tokens than its base on hard problems. It's the new main-agent pick. **Strata** is still the strongest solver, but too slow for interactive work.
+- **ThinkingCap is the best model that fits in VRAM:** 98.1% terminal-x3, 80% LiveCodeBench at 64k, and 28% fewer tokens than its base on hard problems. Rebuilt at the base's exact quant it scores the same 80%, so the gain comes from the fine-tune, not the quant. It's the new main-agent pick. **Strata** is still the strongest solver, but too slow for interactive work.
 - **Qwen3.8 thinks at maximum effort by default.** Its chat template defaults to `reasoning_effort: xhigh`. At `medium`, qwen3.8-27b finished terminal-x3 twice as fast with 62% fewer tokens (92.6% vs 100%), but LiveCodeBench didn't change at all.
 - **Give reasoning models at least 64k output tokens.** At 32k, a third or more of hard answers are cut off.
 - **Stay on Vulkan.** ROCm is 13–25% slower at generation for most models.
-- **DeepSeek V4 Flash is accurate but very slow here, and doesn't beat Strata.** 96.3% terminal-x3 and 97.5% HumanEval+, but at ~9 tok/s it took 250 minutes for terminal-x3 (14× ThinkingCap). LiveCodeBench at 32k: 60.0% in 15 hours, against Strata's 83.3% in 1.9 hours, with 9 answers cut off. A 64k run is under way.
+- **DeepSeek V4 Flash is accurate but very slow here, and doesn't beat Strata.** 96.3% terminal-x3 and 97.5% HumanEval+, but at ~9 tok/s it took 250 minutes for terminal-x3 (14× ThinkingCap). LiveCodeBench: 60.0% at 32k and **80.0% at 64k**, level with ThinkingCap and within noise of Strata's 83.3%. But the 64k run took 27 hours, against 1.9 hours for Strata.
 
 ---
 
@@ -25,7 +25,7 @@ An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b1
 | The biggest model wins on quality. Strata runs Qwen3.8-Flash-Next with ~50 GB of experts in RAM, much larger than anything that fits in VRAM. | Best LiveCodeBench (83.3%, the only reasoning model with no cut-offs) and tied best terminal-x3 (100%). A second run on Oct 26 gave exactly the same scores. ThinkingCap at 64k comes within 3.3 points. | ✅ as expected |
 | A dense 27B reasoning model beats ~3B-active MoEs on agentic work. | qwen3.8-27b ties Strata on terminal-x3 (100%) with the fewest turns (6.0) and no bad tool calls. The ~3B-active MoEs score 74–94%. | ✅ |
 | Older non-reasoning coders fall behind. | qwen3-coder-30b: 10% LCB, 51.9% terminal-x3 (0/3 on the fixed task too), and it ran out of turns in 12 of 54 episodes. | ✅ It's a 2025 instruct model with no thinking, so this was expected. |
-| ThinkingCap matches the base model with ~37% fewer reasoning tokens. | Terminal is the same within noise (98.1 vs 100). It used **31% fewer** output tokens there (1,229 vs 1,787) and finished 30% faster. At a 32k budget LCB showed only 9% fewer tokens, because both were cut off so often. At 64k the gap is **28%** (24.1k vs 33.3k), and ThinkingCap scores *higher*: 80% vs 66.7%, with 5 cut-offs vs 9. | ✅ The claim holds once the budget is big enough to see it. Note: the two use different quants. |
+| ThinkingCap matches the base model with ~37% fewer reasoning tokens. | Terminal is the same within noise (98.1 vs 100). It used **31% fewer** output tokens there (1,229 vs 1,787) and finished 30% faster. At a 32k budget LCB showed only 9% fewer tokens, because both were cut off so often. At 64k the gap is **28%** (24.1k vs 33.3k), and ThinkingCap scores *higher*: 80% vs 66.7%, with 5 cut-offs vs 9. | ✅ The claim holds once the budget is big enough to see it. It also holds at the same quant: rebuilt at the base's UD-Q4_K_XL, ThinkingCap again scored 80% at 64k, with 21% fewer tokens (26.3k vs 33.3k). |
 | Nemotron Bolt (74B-A9B) beats Lightning (30B-A3B). | Terminal: 92.6 vs 74.1, as expected. LCB at 64k: 63.3 vs 66.7, still a tie; Bolt still had 10 cut-offs, Lightning only 2. | ✅ on terminal, ❌ on LCB |
 | Speculative decoding helps the models that ship a drafter. | Draft acceptance is 63–77% (Strata 77%, qwen3.8 70%, Lightning 68%, Bolt 63%). Lightning has the fastest generation of any model (131 tok/s at 8k). | ✅ |
 | Laguna XS 2.1 (poolside, 33B-A3B coder) is competitive with the other ~3B-active coders. | The weakest of the 2026 models: 33.3% LCB, 77.8% terminal-x3. Only 10 of its 23 LCB answers that weren't cut off passed. All the other thinking models passed at least 79%, and most passed 93% or more. Its failures are mostly plain wrong answers. | ❌ below expectations |
@@ -60,11 +60,13 @@ Most cut-offs are on the hard problems, so not every cut-off answer would pass w
 | flint | 63.3 | 7 | 66.7 | 1 | 20.5k | 1.6 h |
 | gemma-4-26b | 73.3 | 2 | 66.7 | 1 | 17.1k | 1.4 h |
 | nemotron-bolt | 46.7 | 17 | 63.3 | 10 | 34.3k | 3.5 h |
+| thinkingcap at UD-Q4_K_XL (Oct 30–31) | 60.0 | 11 | **80.0** | 5 | 26.3k | 5.1 h |
+| deepseek-v4-flash (Oct 29–30) | 60.0 | 9 | **80.0** | 3 | 26.0k | 26.9 h |
 | strata (32k only, for reference) | 83.3 | 0 | | | 16.5k | 1.9 h |
 
 - **The models that were cut off most gained 10–17 points.** Six of the seven now sit at 63–67%. With 30 problems that spread is noise, so they're effectively tied.
 - **Gemma shows the noise level.** It barely needed more room (2 → 1 cut-off), yet scored 6.7 points lower than at 32k. A re-run of the same problems can therefore move a score by about ±7 points.
-- **ThinkingCap and Strata are the real outliers.** ThinkingCap gained 17 points by finishing more hard problems (67% of the hard half, against 40% for its base). Strata matched its earlier 83.3% exactly on a second run.
+- **ThinkingCap and Strata are the real outliers.** ThinkingCap gained 17 points by finishing more hard problems (67% of the hard half, against 40% for its base). Strata matched its earlier 83.3% exactly on a second run. DeepSeek V4 Flash later joined them at 80%, with the biggest gain of any model (20 points).
 - **qwen3.8-27b and Bolt still need more than 64k on hard problems** at their default effort (9 and 10 cut-offs).
 
 **2. One terminal task was broken, which capped terminal-x3 at 94.4%.**
@@ -118,20 +120,39 @@ DeepSeek V4 Flash (284B total, 13B active) at Unsloth UD-Q2_K_XL (91 GB) runs th
 
 - **Quality is in the top group.** It passed all 6 quick terminal tasks and 52 of 54 terminal-x3 episodes; it lost one run each of `git-bisect` and `log-error-report`. It passed the fixed `backup-rotation` 3/3. Tool calls were clean (0 bad calls), and it never ran out of turns.
 - **Speed rules it out for interactive work.** Prompt processing at 42 tok/s is the real problem: an agent turn that re-reads 8k tokens of context waits over 3 minutes before it writes anything. Generation is also ~6× slower than the 27B dense models.
-- **LiveCodeBench at 32k: 60.0%, well behind Strata.** The overnight run's LCB was lost to a power outage on Oct 28, so it was re-run alone on Oct 28–29 (run `20261028-205421-247e`):
+- **LiveCodeBench: 60.0% at 32k, 80.0% at 64k.** The overnight run's LCB was lost to a power outage on Oct 28, so it was re-run alone at 32k on Oct 28–29 (run `20261028-205421-247e`), then at 64k on Oct 29–30 (run `20261029-204848-6228`, with the server context raised to 200,704 so that 3 × 64k fit):
 
-  | LCB at 32k | deepseek-v4-flash | strata | thinkingcap-qwen3.8-27b |
-  |---|---:|---:|---:|
-  | pass@1 | 60.0% | **83.3%** | 63.3% |
-  | medium / hard | 12/15 · 6/15 | | |
-  | cut off | 9 (7 hard) | 0 | 11 |
-  | passed when not cut off | 18/21 (86%) | 25/30 (83%) | 18/19 (95%) |
-  | avg output | 18.2k tok | 16.5k tok | |
-  | run time | **15.2 h** | 1.9 h | 2.6 h |
+  | LCB | deepseek 32k | deepseek 64k | strata 32k | thinkingcap 64k |
+  |---|---:|---:|---:|---:|
+  | pass@1 | 60.0% | 80.0% | **83.3%** | 80.0% |
+  | medium / hard | 12/15 · 6/15 | 13/15 · **11/15** | | 14/15 · 10/15 |
+  | cut off | 9 (7 hard) | 3 (2 hard) | 0 | 5 |
+  | passed when not cut off | 18/21 (86%) | 24/27 (89%) | 25/30 (83%) | 23/25 (92%) |
+  | avg output | 18.2k tok | 26.0k tok | 16.5k tok | 24.1k tok |
+  | run time | 15.2 h | **26.9 h** | 1.9 h | 4.5 h |
 
-  - It belongs with the models the 32k cap holds back: 7 of its 12 misses were hard problems cut off at 32,768 tokens, each after 3.4–3.7 hours. Of the answers it finished, it got 18 of 21 right, the same as the others.
-  - With 4 requests in flight it decoded at only ~2.7 tok/s each, so one 32k answer takes over 3 hours.
-  - Strata had no cut-offs at 32k, so a bigger budget can't change its score. DeepSeek would need to gain more than 23 points at 64k to match it, which no model has done (the best gain was ThinkingCap's 17). **A 64k run started on Oct 29** to settle it; it will likely take more than 20 hours.
+  - At 32k the token cap held it back: 7 of its 12 misses were hard problems cut off at 32,768 tokens, each after 3.4–3.7 hours.
+  - With twice the room it gained 20 points, more than any other model, and solved 11 of 15 hard problems; Strata solved 11 and 12 in its two runs. 80% vs 83.3% is well inside the ±9-point noise of 30 problems.
+  - It's far too slow to use for this, though. It decodes at ~3 tok/s per request with 3 in flight, so the 64k run took 14× as long as Strata's and 6× as long as ThinkingCap's for the same score.
+
+### ThinkingCap at the base model's quant
+
+ThinkingCap beat its base by 13 points at 64k (80% vs 66.7%), but the two ran at different quants: ThinkingCap at Q4_K_M and the base at Unsloth's UD-Q4_K_XL. Nobody publishes a UD-Q4_K_XL of ThinkingCap, so on Oct 30 we made one. We took bottlecap's f16 and quantized it with the exact type of each of the base file's 866 tensors and Unsloth's imatrix for the base. The result is the same size as the base file (16,735 MiB), and every tensor type matches. It's a local rebuild of Unsloth's mix, not Unsloth's own file; it shows as `thinkingcap-qwen3.8-27b-udq4kxl` in RESULTS.md.
+
+| | ThinkingCap Q4_K_M | ThinkingCap UD-Q4_K_XL | qwen3.8-27b UD-Q4_K_XL |
+|---|---:|---:|---:|
+| LCB at 64k | 80.0% | **80.0%** | 66.7% |
+| hard problems at 64k | 10/15 | 10/15 | 6/15 |
+| cut off at 64k | 5 | 5 | 9 |
+| avg output at 64k | 24.1k | 26.3k | 33.3k |
+| LCB at 32k | 63.3% | 60.0% | 56.7% |
+| terminal-x3 | 98.1% | 94.4% | 100% |
+| terminal-x3 avg turns | 5.6 | 5.7 | |
+| generation @8k | 53.2 tok/s | 48.2 tok/s | 52.5 tok/s |
+
+- **The 64k advantage is the fine-tune, not the quant.** At the base's quant ThinkingCap scores the same 80%, solves 10 of 15 hard problems as at Q4_K_M (9 of them the same; the base solved 6), and writes 21% fewer tokens than the base. The two ThinkingCap quants gave the same answer on 28 of 30 problems.
+- **The other differences are noise.** At 32k it scored 3.3 points lower than the Q4_K_M. On terminal-x3 it lost 3 of 54 episodes (`large-files` twice, `log-error-report` once), where the Q4_K_M lost 1. Both are within run-to-run variation.
+- **The Q4_K_M is the one to keep.** It's as good, 0.1 GB smaller, and ~10% faster at generation (53.2 vs 48.2 tok/s at 8k).
 
 ### Other observations
 
@@ -167,13 +188,13 @@ Yes. These are in priority order, by value per GPU-hour:
    - Add longer-horizon tasks: multi-file refactors, debugging a failing test suite, tasks that need 20+ turns.
    - Or report `avg turns` and tokens per task alongside pass rate as the tie-breakers.
 4. ~~**Re-run Strata on a clean GPU.**~~ *Done Oct 26:* VRAM before loading was 0.06 GiB, confirming the earlier warning was the measurement bug. The scores repeated exactly: 100% terminal-x3, 83.3% LCB.
-5. **Compare ThinkingCap and its base on the same quant.** We have ThinkingCap at Q4_K_M and the base at UD-Q4_K_XL. Its 80% vs 66.7% at 64k makes this more interesting: is it the fine-tune or the quant? *Queued Oct 29:* ThinkingCap rebuilt at the base's UD-Q4_K_XL tensor mix, on `overnight` and `livecodebench-64k` (~8 h).
+5. **Compare ThinkingCap and its base on the same quant.** We have ThinkingCap at Q4_K_M and the base at UD-Q4_K_XL. Its 80% vs 66.7% at 64k makes this more interesting: is it the fine-tune or the quant? *Done Oct 30–31; see section 1.* At the same quant ThinkingCap still scores 80% at 64k, so the gain is the fine-tune's.
 6. **Measure single-user server settings.** llama-swap runs every model with 4 slots. Generation drops from ~52 tok/s alone to ~15–20 tok/s per request with 4 in flight (qwen3.8). For one person driving one agent, `--parallel 1` gives each request the full context and maximum speed. Run `speed-concurrent` to put numbers on it.
 7. **Sample more LCB problems for the top contenders.** With 30 problems, the standard error is about ±9 points, and the Gemma re-run moved 6.7 points with no real change. ThinkingCap (80) vs Strata (83.3) and the 63–67% cluster need 60–90 problems to settle.
 8. ~~**Benchmark `gemma-4-e4b`.**~~ *Done Oct 25:* 100% HumanEval (95% HumanEval+), 3 of 6 quick terminal tasks, 85 tok/s generation and the fastest prompt processing measured (4,349 tok/s at 8k, 2.0 s to first token).
 9. ~~**Compare ROCm and Vulkan.**~~ *Done Oct 25:* Vulkan wins (see above).
 10. ~~**Try a lower reasoning effort.**~~ *Done Oct 26 for qwen3.8-27b at `medium`; see section 1.* Next: ThinkingCap at `medium` on terminal-x3 (~20 min) to see whether the two savings stack.
-11. **Finish DeepSeek V4 Flash.** `quick`, terminal-x3 and LiveCodeBench at 32k (60.0%) are done (see section 1). `livecodebench-64k` started Oct 29 (20+ h).
+11. ~~**Finish DeepSeek V4 Flash.**~~ *Done Oct 30:* 80.0% LCB at 64k, but in 27 hours (see section 1).
 12. **Find out why the PCIe link runs at half speed.** The R9700's x4 link trains at 8 GT/s even under full load, against 16 GT/s supported. It matters most for model loading and RAM-offloaded models (Strata, DeepSeek V4 Flash). It's a BIOS or cable check, not a benchmark.
 
 Not worth the time: more HumanEval+ (every model scores 95–100%), and more runs of qwen3-coder-30b or Laguna.
@@ -202,6 +223,6 @@ Recommendations for this machine (R9700 32 GB, 90 GB RAM, llama-swap), based on 
 **Backend:** keep llama-swap on the Vulkan build.
 
 **Waiting on:**
-- **DeepSeek V4 Flash (284B-A13B)** scores near the top on terminal-x3 (96.3%) but runs at ~9 tok/s with 197 s to first token at 8k, so it can't be an interactive agent. At 32k it scored 60.0% on LiveCodeBench against Strata's 83.3%, eight times slower, so Strata stays the escalation pick unless the 64k run closes the gap.
+- **DeepSeek V4 Flash (284B-A13B)** scores near the top on terminal-x3 (96.3%) but runs at ~9 tok/s with 197 s to first token at 8k, so it can't be an interactive agent. With a 64k budget it reaches 80.0% on LiveCodeBench, close to Strata's 83.3%, but the run took 27 hours against Strata's 1.9. **Not recommended on this machine:** Strata is as good and over 10× faster. It would only make sense on hardware that holds it in VRAM.
 - **Inkling Small (276B-A12B)** could too, but it needs mainline llama.cpp support first.
 - **gpt-oss-20b** is configured but hasn't been run.

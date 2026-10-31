@@ -30,10 +30,10 @@ Quality scores don't depend on the backend (same GGUF, same sampling), so only s
 
 ### Next
 
-- [ ] **Finish DeepSeek V4 Flash** (below). `quick`, terminal-x3 and LiveCodeBench at 32k (60.0%, re-run after the 2026-10-28 power outage) are done (ANALYSIS.md). `livecodebench-64k` started 2026-10-29 with the server context raised to 200,704 (3 × 64k); write it up when it finishes.
+- [x] **Finish DeepSeek V4 Flash** (below). `quick`, terminal-x3, LiveCodeBench at 32k (60.0%, re-run after the 2026-10-28 power outage) and at 64k (80.0%, 27 h, server context raised to 200,704 for 3 × 64k) are done. *Done 2026-10-30; see ANALYSIS.md.*
 - [x] **A medium-effort alias in llama-swap.** `qwen3.8-27b-medium` is a llama-swap model now (llama-config `<new>=<base>` variant in models.conf, `--chat-template-kwargs`).
 - [ ] **ThinkingCap at `medium`** on terminal-x3 (~20 min).
-- [ ] **ThinkingCap at the base's UD-Q4_K_XL**, to tell its fine-tune apart from its quant. No UD-Q4_K_XL of ThinkingCap exists, so it's bottlecap's f16 quantized locally with the base file's exact per-tensor types and Unsloth's imatrix (model `thinkingcap-qwen3.8-27b-udq4kxl`). It runs `overnight`, `livecodebench-64k` and `speed-quick` (~8 h), queued 2026-10-29 behind the DeepSeek 64k run (`logs/thinkingcap-udq4kxl.sh`).
+- [x] **ThinkingCap at the base's UD-Q4_K_XL**, to tell its fine-tune apart from its quant. No UD-Q4_K_XL of ThinkingCap exists, so it's bottlecap's f16 quantized locally with the base file's exact per-tensor types and Unsloth's imatrix (model `thinkingcap-qwen3.8-27b-udq4kxl`). It runs `overnight`, `livecodebench-64k` and `speed-quick` (~8 h), queued 2026-10-29 behind the DeepSeek 64k run (`logs/thinkingcap-udq4kxl.sh`). *Done 2026-10-31:* 80% at 64k again, so the gain is the fine-tune's (ANALYSIS.md).
 - [ ] **Harder terminal tasks.** terminal-x3 is saturated (100 / 100 / 98.1).
 
 ### DeepSeek V4 Flash
@@ -82,7 +82,7 @@ The R9700 sits behind a 4-lane link. The root port supports 16 GT/s, but the lin
   - **Context check:** llama-swap doesn't set `--parallel`, so llama-server uses one KV cache shared by its 4 slots (`--kv-unified` is the default when the slot count is automatic). A single answer can therefore use the whole context.
   - Four 66k-token answers at once would overflow a 262k pool, so the suite runs 3 requests at a time.
 - [x] **Strata's "VRAM already in use" warning was a measurement bug.** The `process` backend ran its `pre:` hook (which empties llama-swap) after the runner had recorded the VRAM baseline, so the baseline still included the previous model. Fixed 2026-10-25: `pre:` now runs in `free_gpu()`, before the baseline. Strata most likely had the GPU to itself all along. Stage D re-runs it anyway and will confirm with the corrected measurement.
-- [ ] **ThinkingCap vs. Qwen3.8-27B isn't an exact comparison.** ThinkingCap is Q4_K_M, while the base model is Unsloth UD-Q4_K_XL. Grab the same quant of both for a clean comparison.
+- [x] **ThinkingCap vs. Qwen3.8-27B isn't an exact comparison.** ThinkingCap is Q4_K_M, while the base model is Unsloth UD-Q4_K_XL. *Resolved 2026-10-31:* ThinkingCap rebuilt at the base's UD-Q4_K_XL mix scores the same 80% at 64k.
   - ThinkingCap claims about 37% fewer reasoning tokens. On LCB it averaged 18.5k output tokens vs. 20.3k for the base, about 9% fewer.
 - [ ] **LiveCodeBench uses only 30 problems.** That leaves a standard error of roughly ±9 points, so differences under about 10 points are noise. Consider sampling 60+ problems, or the whole v6 release (175), for the top few models.
 - [ ] **HumanEval+ is saturated.** Nearly every model scores 95–100%, so it barely separates them. MBPP+ or more LiveCodeBench would be more informative.
