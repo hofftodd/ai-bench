@@ -175,7 +175,7 @@ ThinkingCap beat its base by 13 points at 64k (80% vs 66.7%), but the two ran at
 - **The PCIe link is the likely reason.** Avalon moves experts to the GPU over PCIe, and the R9700's link here is x4 at 8 GT/s (~3.9 GB/s, see section 2, item 12). Avalon's author has ~14 GB/s, and another R9700 owner on PCIe 5.0 x16 reports ~1,000 tok/s prefill and 68 tok/s generation after a 19k prompt ([Avalon issue #10](https://github.com/freriadoc/Avalon/issues/10)). Avalon is also HIP-only, and ROCm is slower than Vulkan on this card (below).
 - **The README's batch size hangs here.** With `-b 9536 -ub 9536` (tuned on RDNA3) the server deadlocked on its first 8k prompt and spun overnight. `-b 8192` works and is what issue #10 found fastest on gfx1201. The aibench backend now uses 8192.
 - **Its MTP numbers assume greedy decoding.** With Qwen's recommended sampling (temperature 1.0), draft acceptance falls from ~70% to ~55% and generation by ~10%.
-- **UD-Q4_K_XL costs 35–40% of the speed** for no visible gain on the quick suites. Each expert is ~35% larger, and both the CPU's RAM reads and the PCIe link scale with that.
+- **UD-Q4_K_XL costs 35–40% of the speed** for no visible gain on the quick suites. Each expert is ~35% larger, and both the CPU's RAM reads and the PCIe link scale with that. Its files were deleted on Nov 1 (`bench.yaml` says how to bring it back).
 - **It's stable otherwise.** 91 agent-loop requests with prompt-cache reuse (the trigger of Avalon issues #5 and #7) ran without an error, and tool calls were clean.
 
 Quality on the overnight profile isn't measured yet. With one slot (`--parallel 1`) the runs queue, so expect it to take longer than Strata's.

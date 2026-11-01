@@ -99,18 +99,20 @@ models:
     max_tokens: 32768          # reasoning model, same budget as the others
 
   # The same model on Avalon. Context 128k like Strata. avalon-iq3ks is Avalon's own GGUF (ISTA's experts
-  # with the up/gate of 27 layers requantized from BF16); avalon-udq4kxl is Unsloth's UD-Q4_K_XL (104 GiB,
-  # the best quality that fits this box) repacked with Avalon's scripts/pack-experts.py.
+  # with the up/gate of 27 layers requantized from BF16).
   avalon-iq3ks: &avalon
     backend: avalon
     id: qwen3.8-flash-next-avalon-iq3ks
     gguf: ~/models/qwen3.8-flash-next/avalon-iq3ks/Qwen3.8-Flash-Next-Avalon-IQ3KS-00001-of-00033.gguf
     max_tokens: 32768
     params: {temperature: 1.0, top_p: 0.95, top_k: 20}   # Qwen's thinking-mode defaults for this model
-  avalon-udq4kxl:
-    <<: *avalon
-    id: qwen3.8-flash-next-avalon-udq4kxl
-    gguf: ~/models/qwen3.8-flash-next/udq4kxl-packed/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf
+  # avalon-udq4kxl (Unsloth's UD-Q4_K_XL repacked with Avalon's scripts/pack-experts.py) ran the quick profile on
+  # Nov 1: 35-40% slower than avalon-iq3ks with no quality gain, so its files were deleted. To bring it back,
+  # download unsloth/Qwen3.8-Flash-Next-GGUF UD-Q4_K_XL, repack it, copy moe-cache-ranking.bin next to it and add:
+  # avalon-udq4kxl:
+  #   <<: *avalon
+  #   id: qwen3.8-flash-next-avalon-udq4kxl
+  #   gguf: ~/models/qwen3.8-flash-next/udq4kxl-packed/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf
 
   # DeepSeek V4 Flash (284B-A13B MoE), Unsloth UD-Q2_K_XL, via llama-swap. Experts of 34 of the 43
   # layers stay in RAM (--n-cpu-moe 34, mmap'd), the rest in VRAM; ~9 tok/s decode warm. Needs
