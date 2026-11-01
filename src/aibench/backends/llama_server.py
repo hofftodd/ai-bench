@@ -140,5 +140,7 @@ class LlamaServerBackend(ProcessBackend):
     def command(self, model: ModelSpec) -> list[str]:
         if not model.gguf:
             raise ValueError(f"model {model.key!r} needs a `gguf:` path for the llama-server backend")
+        # paths in args (a drafter, a draft model) may start with ~
+        args = [os.path.expanduser(a) for a in (*self.args, *model.args)]
         return [self.binary, "--host", self.host, "--port", str(self.port), "--model", model.gguf,
-                "--alias", model.id, *self.args, *model.args]
+                "--alias", model.id, *args]

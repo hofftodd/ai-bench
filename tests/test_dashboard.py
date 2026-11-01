@@ -76,6 +76,8 @@ def test_quant_from_filename():
     assert dashboard.quant("/m/ThinkingCap-Qwen3.8-27B-UD-Q4_K_XL-local.gguf") == "UD-Q4_K_XL"
     assert dashboard.quant("/m/gemma-4-E4B-it-Q4_K_M.gguf") == "Q4_K_M"
     assert dashboard.quant("/m/gpt-oss-20b-mxfp4.gguf") == "MXFP4"
+    assert dashboard.quant("/m/Qwen3.8-Flash-Next-Avalon-IQ3KS-00001-of-00033.gguf") == "IQ3_KS"
+    assert dashboard.quant("/m/model-IQ4_K.gguf") == "IQ4_K"
     assert dashboard.quant(None) == ""
     assert dashboard.quant("/does/not/exist.gguf") == ""   # no name match, header unreadable
 

@@ -154,6 +154,32 @@ ThinkingCap beat its base by 13 points at 64k (80% vs 66.7%), but the two ran at
 - **The other differences are noise.** At 32k it scored 3.3 points lower than the Q4_K_M. On terminal-x3 it lost 3 of 54 episodes (`large-files` twice, `log-error-report` once), where the Q4_K_M lost 1. Both are within run-to-run variation.
 - **The Q4_K_M is the one to keep.** It's as good, 0.1 GB smaller, and ~10% faster at generation (53.2 vs 48.2 tok/s at 8k).
 
+### Avalon: Strata's model on a different engine
+
+[Avalon](https://github.com/freriadoc/Avalon) is a llama.cpp fork built for Qwen3.8-Flash-Next, the model Strata serves. It keeps the experts mmap'd in RAM and a cache of the hottest ones in VRAM, lets the CPU compute the experts the GPU doesn't have, streams experts over PCIe during prefill, and adds an MTP draft head. Its README claims ~47% faster generation than Strata on a 7900 XT. On Oct 31 – Nov 1 we built it for gfx1201 (no code changes: the R9700's first-request hang was fixed upstream in `2d16e18cc`) and ran `quick` on two quants:
+
+- `avalon-iq3ks`: Avalon's own 89 GiB GGUF. It keeps ISTA's IQ3_S experts (the ones Strata runs) and requantizes the up/gate tensors of 27 layers from BF16. Avalon's README puts its perplexity between Strata's IQ3_S and Unsloth's UD-IQ4_XS.
+- `avalon-udq4kxl`: Unsloth's UD-Q4_K_XL (104 GiB, the best quality that fits RAM + VRAM here), repacked with Avalon's `scripts/pack-experts.py`. `check-packed-experts.py` found 0 mismatches.
+
+| | avalon-iq3ks | avalon-udq4kxl | strata |
+|---|---:|---:|---:|
+| generation @512 | **68.7 tok/s** | 40.5 | 63.5 |
+| generation @8k | 44.9 | 30.5 | **67.8** |
+| prompt processing @512 | **262 tok/s** | 166 | 158 |
+| prompt processing @8k | 721 | 461 | **780** |
+| time to first token @8k | 11.6 s | 17.8 s | **10.5 s** |
+| HumanEval / HumanEval+ (quick) | 100 / 95 | 100 / 97.5 | 95 / 95 |
+| terminal-quick | 100% (5.8 min) | 100% (30.0 min) | 100% |
+
+- **On this box it's no faster than Strata.** It's ahead on short prompts but behind at 8k context, where agent loops spend their time. Its generation falls by a third once the context holds 8k tokens; Strata's doesn't.
+- **The PCIe link is the likely reason.** Avalon moves experts to the GPU over PCIe, and the R9700's link here is x4 at 8 GT/s (~3.9 GB/s, see section 2, item 12). Avalon's author has ~14 GB/s, and another R9700 owner on PCIe 5.0 x16 reports ~1,000 tok/s prefill and 68 tok/s generation after a 19k prompt ([Avalon issue #10](https://github.com/freriadoc/Avalon/issues/10)). Avalon is also HIP-only, and ROCm is slower than Vulkan on this card (below).
+- **The README's batch size hangs here.** With `-b 9536 -ub 9536` (tuned on RDNA3) the server deadlocked on its first 8k prompt and spun overnight. `-b 8192` works and is what issue #10 found fastest on gfx1201. The aibench backend now uses 8192.
+- **Its MTP numbers assume greedy decoding.** With Qwen's recommended sampling (temperature 1.0), draft acceptance falls from ~70% to ~55% and generation by ~10%.
+- **UD-Q4_K_XL costs 35–40% of the speed** for no visible gain on the quick suites. Each expert is ~35% larger, and both the CPU's RAM reads and the PCIe link scale with that.
+- **It's stable otherwise.** 91 agent-loop requests with prompt-cache reuse (the trigger of Avalon issues #5 and #7) ran without an error, and tool calls were clean.
+
+Quality on the overnight profile isn't measured yet. With one slot (`--parallel 1`) the runs queue, so expect it to take longer than Strata's.
+
 ### Other observations
 
 - **Tool calling is clean everywhere.** There were zero malformed tool calls and zero tool calls written as plain text, across all 540 terminal episodes. llama-swap's chat templates and tool parsers work for every model tested, so `terminal-text` isn't urgent.
@@ -195,7 +221,7 @@ Yes. These are in priority order, by value per GPU-hour:
 9. ~~**Compare ROCm and Vulkan.**~~ *Done Oct 25:* Vulkan wins (see above).
 10. ~~**Try a lower reasoning effort.**~~ *Done Oct 26 for qwen3.8-27b at `medium`; see section 1.* Next: ThinkingCap at `medium` on terminal-x3 (~20 min) to see whether the two savings stack.
 11. ~~**Finish DeepSeek V4 Flash.**~~ *Done Oct 30:* 80.0% LCB at 64k, but in 27 hours (see section 1).
-12. **Find out why the PCIe link runs at half speed.** The R9700's x4 link trains at 8 GT/s even under full load, against 16 GT/s supported. It matters most for model loading and RAM-offloaded models (Strata, DeepSeek V4 Flash). It's a BIOS or cable check, not a benchmark.
+12. **Find out why the PCIe link runs at half speed.** The R9700's x4 link trains at 8 GT/s even under full load, against 16 GT/s supported. It matters most for model loading and RAM-offloaded models (Strata, DeepSeek V4 Flash), and most of all for Avalon, which streams experts over PCIe during prefill. It's a BIOS or cable check, not a benchmark. Once it's fixed, re-run `speed-quick` on `avalon-iq3ks` before deciding on Avalon's overnight run.
 
 Not worth the time: more HumanEval+ (every model scores 95–100%), and more runs of qwen3-coder-30b or Laguna.
 

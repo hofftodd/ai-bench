@@ -41,6 +41,23 @@ backends:
            --cache-type-k, q8_0, --cache-type-v, q8_0, --device, ROCm0]
     pre: ["curl -s http://localhost:8080/unload"]
 
+  # Avalon (llama.cpp fork for Qwen3.8-Flash-Next, https://github.com/freriadoc/Avalon), built for gfx1201
+  # in ~/src/Avalon (main includes 2d16e18cc, the fix for the R9700's first-request hang). Experts stay
+  # mmap'd in RAM, a cache of the hottest ones fills the free VRAM. Flags are the README's run command
+  # except -b/-ub 8192: the README's 9536 (tuned on RDNA3) hung on an 8k prompt here, and is slower on
+  # gfx1201 (Avalon issue #10). --parallel 1 matters (other slots would hold on to their part of the KV cache).
+  # Prefill streams experts over PCIe, so this box's x4 Gen3 link (see TODO.md) limits it.
+  avalon:
+    type: llama-server
+    binary: ~/src/Avalon/build/bin/llama-server
+    port: 5897
+    args: [--ctx-size, 131072, -b, 8192, -ub, 8192, -fa, "on", -ctk, q8_0, -ctv, q4_0, --jinja,
+           --parallel, 1, --spec-type, draft-mtp, --spec-draft-n-max, 2, -ubd, 256, -ctkd, q8_0, -ctvd, q8_0,
+           -md, ~/models/qwen3.8-flash-next/avalon-iq3ks/MTP/mtp-Qwen3.8-Flash-Next-shared-IQ3K-IQ4NL-FR65k.gguf]
+    pre: ["curl -s http://localhost:8080/unload"]
+    env: {HIP_VISIBLE_DEVICES: "0"}   # the R9700 only: hide the 780M (Avalon's multi-GPU is untested)
+    startup_timeout: 1800     # first load reads ~90-100 GiB from disk
+
   ollama:
     type: ollama
     base_url: http://localhost:11434
@@ -80,6 +97,20 @@ models:
     # --model q2_0 for the faster 2-bit pack (~44 GB RAM).
     args: [--model, iq3_s, --context, 128k, --vision, "off", --tune, skip]
     max_tokens: 32768          # reasoning model, same budget as the others
+
+  # The same model on Avalon. Context 128k like Strata. avalon-iq3ks is Avalon's own GGUF (ISTA's experts
+  # with the up/gate of 27 layers requantized from BF16); avalon-udq4kxl is Unsloth's UD-Q4_K_XL (104 GiB,
+  # the best quality that fits this box) repacked with Avalon's scripts/pack-experts.py.
+  avalon-iq3ks: &avalon
+    backend: avalon
+    id: qwen3.8-flash-next-avalon-iq3ks
+    gguf: ~/models/qwen3.8-flash-next/avalon-iq3ks/Qwen3.8-Flash-Next-Avalon-IQ3KS-00001-of-00033.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20}   # Qwen's thinking-mode defaults for this model
+  avalon-udq4kxl:
+    <<: *avalon
+    id: qwen3.8-flash-next-avalon-udq4kxl
+    gguf: ~/models/qwen3.8-flash-next/udq4kxl-packed/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf
 
   # DeepSeek V4 Flash (284B-A13B MoE), Unsloth UD-Q2_K_XL, via llama-swap. Experts of 34 of the 43
   # layers stay in RAM (--n-cpu-moe 34, mmap'd), the rest in VRAM; ~9 tok/s decode warm. Needs

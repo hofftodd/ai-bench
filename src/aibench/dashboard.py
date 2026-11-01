@@ -48,9 +48,10 @@ DETAILS: dict[str, tuple[str, str]] = {
 COLUMNS = ["model", "backend", "quant", "overnight_order", "overnight_status", *METRICS, "terminal_x3_orig_pct",
            *DETAILS]
 
-# Quant names as they appear in GGUF filenames (Unsloth's dynamic quants keep their UD- prefix).
-QUANT_RE = re.compile(r"(?<![A-Za-z0-9])((?:UD-)?(?:IQ\d_(?:XXS|XS|NL|S|M)|TQ\d_\d|Q\d_K(?:_(?:XL|S|M|L))?|Q\d_\d"
-                      r"|MXFP4(?:_MOE)?|NVFP4|BF16|F16|F32))(?![A-Za-z0-9])", re.IGNORECASE)
+# Quant names as they appear in GGUF filenames (Unsloth's dynamic quants keep their UD- prefix). ik_llama.cpp's
+# IQn_K types (Avalon's "IQ3KS") are matched by name: their header ftype numbers collide with llama.cpp's.
+QUANT_RE = re.compile(r"(?<![A-Za-z0-9])((?:UD-)?(?:IQ\d_(?:XXS|XS|NL|S|M)|IQ\d_?K(?:SS|S|T)?|TQ\d_\d"
+                      r"|Q\d_K(?:_(?:XL|S|M|L))?|Q\d_\d|MXFP4(?:_MOE)?|NVFP4|BF16|F16|F32))(?![A-Za-z0-9])", re.IGNORECASE)
 # llama.cpp's llama_ftype (include/llama.h), for GGUFs whose filename doesn't name the quant.
 FILE_TYPES = {0: "F32", 1: "F16", 2: "Q4_0", 3: "Q4_1", 7: "Q8_0", 8: "Q5_0", 9: "Q5_1", 10: "Q2_K", 11: "Q3_K_S",
               12: "Q3_K_M", 13: "Q3_K_L", 14: "Q4_K_S", 15: "Q4_K_M", 16: "Q5_K_S", 17: "Q5_K_M", 18: "Q6_K",
@@ -99,7 +100,7 @@ def quant(model_path: str | None) -> str:
     if not model_path:
         return ""
     if m := QUANT_RE.search(Path(model_path).name):
-        return m.group(1).upper()
+        return re.sub(r"^IQ(\d)K", r"IQ\1_K", m.group(1).upper())
     return FILE_TYPES.get(_gguf_file_type(Path(model_path)), "")
 
 # terminal-x3 shipped with a broken backup-rotation task (it failed any model that tested its script).
