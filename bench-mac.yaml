@@ -22,9 +22,9 @@ outputs:
   overnight: [livecodebench]
   notes: >-
     **Machine:** Mac Studio, Apple M5 Ultra, 256 GB unified memory, macOS 27.2. Engines: llama.cpp b12098
-    (Metal), [DwarfStar](https://github.com/antirez/ds4) (`ds4`) and [sushi](https://github.com/beamivalice/sushi)
-    1.4.1 (MLX). No terminal suites (no Docker), and no power or memory figures (aibench reads those only on Linux).
-    The sushi and ds4 models measure speed with `speed-quick-eos`, which is `speed-quick` without `ignore_eos`
+    (Metal), [DwarfStar](https://github.com/antirez/ds4) (`ds4`), [sushi](https://github.com/beamivalice/sushi)
+    1.4.1 (MLX), and [oMLX](https://github.com/jundot/omlx) 0.7.3 (MLX). No terminal suites (no Docker), and no power or memory figures (aibench reads those only on Linux).
+    The sushi, ds4 and oMLX models measure speed with `speed-quick-eos`, which is `speed-quick` without `ignore_eos`
     (both servers reject it). [ANALYSIS-mac.md](ANALYSIS-mac.md) interprets these numbers;
     [RESULTS-compare.md](RESULTS-compare.md) puts them next to the R9700's.
 
@@ -37,9 +37,10 @@ compare:
     ds4-q2: deepseek-v4-flash
     ds4-q4: deepseek-v4-flash
     sushi-qwen3.8-flash-next-4bpw: strata
+    qwen3.8-flash-next: strata
   notes: >-
     **R9700:** Radeon AI PRO R9700 (32 GB) on llama.cpp b11850 (Vulkan), with Strata for Qwen3.8-Flash-Next.
-    **Mac:** Mac Studio M5 Ultra (256 GB unified memory) on llama.cpp b12098 (Metal), DwarfStar and sushi (MLX).
+    **Mac:** Mac Studio M5 Ultra (256 GB unified memory) on llama.cpp b12098 (Metal), DwarfStar, sushi and oMLX (MLX).
     The R9700's llama-bench numbers aren't in its models.csv yet (they arrive when its dashboard is next rebuilt);
     [ANALYSIS-compare.md](ANALYSIS-compare.md) quotes them from RESULTS.md and interprets the tables.
 
@@ -70,6 +71,14 @@ backends:
     port: 8000
     startup_timeout: 1800
 
+  # oMLX (https://github.com/jundot/omlx, Homebrew jundot/omlx), MLX. Serves every model directory under
+  # {gguf} (~/models/omlx holds symlinks named after the model ids). Up to 8 requests at once by default.
+  omlx:
+    type: process
+    start: omlx serve --model-dir {gguf} --host {host} --port {port} --headless
+    port: 8010
+    startup_timeout: 1800
+
 models:
   qwen3.8-27b:
     backend: metal
@@ -87,6 +96,17 @@ models:
     gguf: ~/models/flint/flint-UD-Q4_K_XL.gguf
     max_tokens: 32768
     params: {temperature: 1.0, top_p: 0.95, top_k: 20, keep_reasoning: true}   # per Recursive/Unsloth
+    args: [--ctx-size, 540672]        # 4 slots x 135,168 (see qwen3.8-27b)
+
+  # Qwen3.8-Flash-Next on stock llama.cpp, to see whether sushi's 63-70% LCB (vs Strata's 83.3% on the
+  # R9700) comes from sushi. Same sampling as the sushi runs. No MTP drafter: Unsloth's heads need their
+  # llama.cpp fork for this architecture (qwen4exp), and drafting doesn't change the output anyway.
+  qwen3.8-flash-next:
+    backend: metal
+    id: qwen3.8-flash-next
+    gguf: ~/models/qwen3.8-flash-next/UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20}   # Qwen's thinking-mode defaults, as on sushi
     args: [--ctx-size, 540672]        # 4 slots x 135,168 (see qwen3.8-27b)
 
   # On the R9700, experts of 34 of 43 layers ran from system RAM (--n-cpu-moe 34). Here the whole
@@ -132,6 +152,16 @@ models:
     gguf: ~/.sushi/models/beamster/MiMo-V2.6-Flash-Sushi-2.3bpw
     max_tokens: 32768
     params: {temperature: 1.0, top_p: 0.95}   # pack generation_config.json
+
+  # Thinking Machines' Inkling-Small (276B total / 12B active, Apache-2.0) as mlx-community's 4-bit MLX
+  # build (experts 4-bit, the rest 8-bit; 153 GB). llama.cpp has no Inkling support on Metal, so oMLX.
+  # No recommended sampling is published; the chat template's default reasoning_effort (0.9) applies.
+  inkling-small:
+    backend: omlx
+    id: inkling-small
+    gguf: ~/models/omlx
+    max_tokens: 32768
+    params: {temperature: 1.0}
 
 suites:                       # copied from bench.yaml so the settings match exactly
   speed-quick:
