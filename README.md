@@ -9,7 +9,7 @@ Every result also records peak VRAM, average GPU power and energy used, plus the
 
 Results go to `results/` as JSON. Read them in the terminal (`aibench report`) or on the [dashboard](#the-dashboard). **The latest results are in [RESULTS.md](RESULTS.md).**
 
-> **See also:** [RESULTS.md](RESULTS.md) has the latest numbers, [ANALYSIS.md](ANALYSIS.md) interprets them and recommends models for each role, [ARCHITECTURE.md](ARCHITECTURE.md) explains how the code fits together, and [TODO.md](TODO.md) lists open work and known caveats.
+> **See also:** [RESULTS.md](RESULTS.md) has the latest numbers, [ANALYSIS.md](ANALYSIS.md) interprets them and recommends models for each role, the Mac Studio's runs are in [RESULTS-mac.md](RESULTS-mac.md) and [ANALYSIS-mac.md](ANALYSIS-mac.md) (config: `bench-mac.yaml`, so `uv run aibench -c bench-mac.yaml ...`), [RESULTS-compare.md](RESULTS-compare.md) and [ANALYSIS-compare.md](ANALYSIS-compare.md) compare the two machines, [ARCHITECTURE.md](ARCHITECTURE.md) explains how the code fits together, and [TODO.md](TODO.md) lists open work and known caveats.
 
 ---
 

@@ -1,0 +1,178 @@
+# aibench config for the Mac Studio (Apple M5 Ultra, 256 GB unified memory, llama.cpp Metal).
+# Same model keys, GGUFs and sampling as bench.yaml (the R9700), so results compare model-for-model:
+#
+#   uv run aibench -c bench-mac.yaml check
+#   uv run aibench -c bench-mac.yaml run -m qwen3.8-27b -m flint -m deepseek-v4-flash -s mac --tag mac-baseline
+#   uv run aibench -c bench-mac.yaml report --hardware r9700-vulkan --hardware m5ultra-metal
+#
+# The terminal suites are left out (they need Docker). GPU power/memory sampling is Linux-only
+# (amdgpu sysfs / nvidia-smi), so Mac runs record no peak vram / power / energy.
+
+hardware: m5ultra-metal
+results_dir: results
+monitor_gpus: none
+default_backend: metal
+plugins: [plugins]
+
+# `aibench dashboard` (and the rebuild after each run) writes this box's results here, so it never touches the
+# R9700's RESULTS.md / dashboard/data. No Docker here, so LiveCodeBench alone makes a model "done".
+outputs:
+  results_md: RESULTS-mac.md
+  data_dir: dashboard/data-mac
+  overnight: [livecodebench]
+  notes: >-
+    **Machine:** Mac Studio, Apple M5 Ultra, 256 GB unified memory, macOS 27.2. Engines: llama.cpp b12098
+    (Metal), [DwarfStar](https://github.com/antirez/ds4) (`ds4`) and [sushi](https://github.com/beamivalice/sushi)
+    1.4.1 (MLX). No terminal suites (no Docker), and no power or memory figures (aibench reads those only on Linux).
+    The sushi and ds4 models measure speed with `speed-quick-eos`, which is `speed-quick` without `ignore_eos`
+    (both servers reject it). [ANALYSIS-mac.md](ANALYSIS-mac.md) interprets these numbers;
+    [RESULTS-compare.md](RESULTS-compare.md) puts them next to the R9700's.
+
+# The R9700's published results (committed models.csv) next to this box's, written to RESULTS-compare.md.
+compare:
+  label: Mac
+  out: RESULTS-compare.md
+  baseline: {label: R9700, csv: dashboard/data/models.csv}
+  pairs:                          # Mac model -> R9700 model: same network, different engine or quant
+    ds4-q2: deepseek-v4-flash
+    ds4-q4: deepseek-v4-flash
+    sushi-qwen3.8-flash-next-4bpw: strata
+  notes: >-
+    **R9700:** Radeon AI PRO R9700 (32 GB) on llama.cpp b11850 (Vulkan), with Strata for Qwen3.8-Flash-Next.
+    **Mac:** Mac Studio M5 Ultra (256 GB unified memory) on llama.cpp b12098 (Metal), DwarfStar and sushi (MLX).
+    The R9700's llama-bench numbers aren't in its models.csv yet (they arrive when its dashboard is next rebuilt);
+    [ANALYSIS-compare.md](ANALYSIS-compare.md) quotes them from RESULTS.md and interprets the tables.
+
+backends:
+  # Started and stopped by aibench, one model at a time. Flags mirror llama-swap's `server` macro on
+  # the R9700 (q8_0 KV cache, flash attention, jinja templates, 4 slots sharing one KV pool).
+  metal:
+    type: llama-server
+    binary: ~/.local/bin/llama-server
+    port: 5896
+    args: [--n-gpu-layers, 99, --flash-attn, auto, --jinja, --parallel, 4,
+           --cache-type-k, q8_0, --cache-type-v, q8_0]
+    startup_timeout: 1800     # DeepSeek reads ~91 GB on first load
+
+  # sushi (MLX, https://github.com/beamivalice/sushi, Homebrew beamivalice/tap). Serves one pack; the
+  # model's `gguf:` holds the pack directory. Qwen/MiMo run their native MTP head by default.
+  sushi:
+    type: process
+    start: sushi --serve --model {gguf} --host {host} --port {port} --no-vision
+    port: 12345
+    startup_timeout: 1800
+
+  # DwarfStar (https://github.com/antirez/ds4, ~/src/ds4), Metal. --batched-session 4 lets it take
+  # 4 requests at once, like the llama.cpp backends' 4 slots.
+  ds4:
+    type: process
+    start: ds4-server --metal -m {gguf} --host {host} --port {port} -c 262144 --batched-session 4
+    port: 8000
+    startup_timeout: 1800
+
+models:
+  qwen3.8-27b:
+    backend: metal
+    id: qwen3.8-27b
+    gguf: ~/models/qwen3.8-27b/Qwen3.8-27B-UD-Q4_K_XL.gguf
+    max_tokens: 32768
+    params: {temperature: 0.6, top_p: 0.95, top_k: 20}   # Qwen thinking-mode defaults
+    # 4 slots x 135,168: room for a 128k answer plus its prompt in each (llama-server splits ctx over slots)
+    args: [--ctx-size, 540672, --model-draft, ~/models/qwen3.8-27b/MTP/mtp-Qwen3.8-27B-Q4_0.gguf,
+           --spec-type, draft-mtp]
+
+  flint:
+    backend: metal
+    id: flint
+    gguf: ~/models/flint/flint-UD-Q4_K_XL.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20, keep_reasoning: true}   # per Recursive/Unsloth
+    args: [--ctx-size, 540672]        # 4 slots x 135,168 (see qwen3.8-27b)
+
+  # On the R9700, experts of 34 of 43 layers ran from system RAM (--n-cpu-moe 34). Here the whole
+  # model sits in unified memory, so this is the most interesting speed comparison.
+  deepseek-v4-flash:
+    backend: metal
+    id: deepseek-v4-flash
+    gguf: ~/models/deepseek-v4-flash/UD-Q2_K_XL/DeepSeek-V4-Flash-UD-Q2_K_XL-00001-of-00003.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 1.0}       # DeepSeek's recommended sampling
+    args: [--ctx-size, 540672]        # 4 slots x 135,168 (see qwen3.8-27b); the R9700 used 200,704 over 3
+
+  # DeepSeek V4 Flash on DwarfStar, with antirez's own GGUFs (downloaded by `ds4-download`).
+  ds4-q2:
+    backend: ds4
+    id: deepseek-v4-flash
+    gguf: ~/models/ds4/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix-0731.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 1.0}
+  ds4-q4:
+    backend: ds4
+    id: deepseek-v4-flash
+    gguf: ~/models/ds4/DeepSeek-V4-Flash-Q4KExperts-F16HC-F16Compressor-F16Indexer-Q8Attn-Q8Shared-Q8Out-chat-v2-imatrix-0731.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 1.0}
+
+  # sushi packs (`sushi pull`, into ~/.sushi/models). Sampling: each model's vendor defaults.
+  sushi-qwen3.8-flash-next-4bpw:     # the model Strata/Avalon ran on the R9700 (at ~3 bits)
+    backend: sushi
+    id: qwen3.8-flash-next
+    gguf: ~/.sushi/models/beamster/Qwen3.8-Flash-Next-Sushi-4bpw
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20}   # same as avalon/strata
+  sushi-glm-5.3-flash:
+    backend: sushi
+    id: glm-5.3-flash
+    gguf: ~/.sushi/models/beamster/GLM-5.3-Flash-Sushi-2.4bpw
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95}   # pack generation_config.json
+  sushi-mimo-v2.6-flash:
+    backend: sushi
+    id: mimo-v2.6-flash
+    gguf: ~/.sushi/models/beamster/MiMo-V2.6-Flash-Sushi-2.3bpw
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95}   # pack generation_config.json
+
+suites:                       # copied from bench.yaml so the settings match exactly
+  speed-quick:
+    type: throughput
+    prompt_tokens: [512, 8192]
+    gen_tokens: 128
+    repeats: 2
+  speed-quick-eos:            # speed-quick without ignore_eos: ds4 allows it only at temperature 0, sushi only on
+    type: throughput          # /v1/completions. The prompt asks for a long story, so 128 tokens are always reached.
+    prompt_tokens: [512, 8192]
+    gen_tokens: 128
+    repeats: 2
+    ignore_eos: false
+  humaneval-quick:
+    type: humaneval-plus
+    limit: 40
+    concurrency: 4
+  livecodebench:
+    type: livecodebench
+    release: v6
+    sample: {medium: 15, hard: 15}
+    concurrency: 4
+  livecodebench-64k:          # same problems with twice the thinking budget (as on the R9700)
+    type: livecodebench
+    release: v6
+    sample: {medium: 15, hard: 15}
+    max_tokens_override: 65536
+    concurrency: 3            # matches the R9700's run
+  livecodebench-128k:         # 4x the original budget, for models still cut off at 64k (Mac only: needs the memory)
+    type: livecodebench
+    release: v6
+    sample: {medium: 15, hard: 15}
+    max_tokens_override: 131072
+    concurrency: 3
+  kernels:                    # raw llama.cpp speed on the GGUF, no server
+    type: llama-bench
+    binary: ~/.local/bin/llama-bench
+    prompt_tokens: [512, 4096]
+    gen_tokens: [128]
+    args: [-ngl, 99, -fa, "on"]
+
+profiles:
+  mac: [speed-quick, humaneval-quick, livecodebench, kernels]   # kernels last: llama-bench stops the server
+  mac-engine: [speed-quick, humaneval-quick, livecodebench]   # non-llama.cpp engines: no llama-bench

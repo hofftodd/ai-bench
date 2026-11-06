@@ -1,0 +1,9 @@
+model,backend,quant,overnight_order,overnight_status,lcb_truncated,terminal_x3_pass_pct,lcb_pass_pct,terminal_x3_wall_min,lcb_wall_min,lcb64k_pass_pct,lcb64k_truncated,lcb128k_pass_pct,lcb128k_truncated,humaneval_quick_pass_pct,humaneval_quick_plus_pct,terminal_quick_pass_pct,pp512_tok_s,tg512_tok_s,pp8k_tok_s,tg8k_tok_s,ttft8k_s,bench_pp512_tok_s,bench_tg128_tok_s,terminal_x3_orig_pct,terminal_x3_episodes,lcb_problems
+qwen3.8-27b,metal,UD-Q4_K_XL,1,done,12,,56.7,,90.9,70,8,86.7,2,100,95,,815,93.9,1029,58.3,7.99,1116,46.8,,,30
+flint,metal,UD-Q4_K_XL,2,done,7,,66.7,,40.7,80,2,73.3,0,97.5,95,,4079,100,4335,99.1,1.93,4781,118,,,30
+deepseek-v4-flash,metal,UD-Q2_K_XL,3,done,10,,60,,121,83.3,0,,,100,97.5,,852,36.0,820,35.6,10.0,977,39.8,,,30
+ds4-q2,ds4,IQ2_XXS,4,done,8,,73.3,,174,86.7,2,83.3,1,97.5,97.5,,796,62.5,1044,58.0,7.84,,,,,30
+sushi-glm-5.3-flash,sushi,2.4bpw,5,done,15,,50,,110,60,11,,,100,97.5,,1203,66.8,1629,64.6,5.09,,,,,30
+sushi-mimo-v2.6-flash,sushi,2.3bpw,6,done,9,,63.3,,75.8,56.7,11,,,92.5,90,,1787,61.8,2827,98.5,2.96,,,,,30
+sushi-qwen3.8-flash-next-4bpw,sushi,4bpw,7,done,1,,70,,27.3,,,,,97.5,95,,1106,134,3508,138,2.39,,,,,30
+ds4-q4,ds4,Q4_K,8,done,7,,76.7,,168,93.3,0,,,100,97.5,,605,62.7,922,55.7,8.95,,,,,30

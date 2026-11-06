@@ -94,6 +94,24 @@ The R9700 sits behind a 4-lane link. The root port supports 16 GT/s, but the lin
 - [ ] The `kernels` suite (raw `llama-bench`) has run for six models (stage A). Extend it to the rest when we move off b11850. llama-bench suites now unload the served model first, so put them last in a run.
 - [ ] `terminal-text` hasn't been run. It would show whether any model's terminal failures come from llama-swap's tool-call parsing rather than the model itself.
 
+## Mac Studio (future)
+
+Not started. Do these after the current queue (64k, 128k, then sushi Qwen3.8-Flash-Next 64k ×2) finishes, so engine versions stay fixed for the queued runs.
+
+- [ ] **Upgrade sushi 1.4.1 → 1.5.0** (released 2026-11-04). Nothing in it changes output for our three packs (checked 2026-11-05); the useful parts are `sushi pull` verifying every file (re-pull to confirm our packs are intact) and, on main, per-request draft acceptance in `/metrics` (would explain MiMo's faster-at-8k reading) and ~6% faster Flash-Next decode on trellis-trunk packs. Re-measure sushi speeds after the upgrade.
+- [ ] **DeepSeek V4.1 Flash.** The successor to our best model (V4 Flash on DwarfStar, 93.3% LCB at 64k), but much bigger: 763B parameters plus Engram tables, which both engines keep on the SSD. Options as of 2026-11-05:
+  - **sushi `beamster/DeepSeek-V4.1-Flash-1017-Sushi-STQ-1.75bpw`** (first choice): 332 GB download, about 129 GB resident, so it fits fully in memory here. Needs sushi 1.5.0. sushi reports 89% top-1 agreement with the full model and 77 tok/s on code on a 128 GB Mac streaming from SSD.
+  - **DwarfStar `antirez/deepseek-v4.1-flash-gguf` Q2** (366 GB): more than 256 GB, so it needs DwarfStar's SSD streaming; speed would partly measure the SSD. Check that our ds4 build (2026-11-03) supports V4.1.
+  - Unsloth (300–500 GB) and ISTA's GSQ-RCO GGUFs (138 GB + 111 GB Engram) are too big or too tight.
+  - V4.1 adds a reasoning-effort setting (`--think-level 1–100` on DwarfStar). Use each engine's default and record it.
+  - Run `speed-quick-eos` and `livecodebench-64k`, the same as the best V4 Flash runs. Disk: 2.8 TB free.
+- [ ] **oMLX** ([jundot/omlx](https://github.com/jundot/omlx)): standard MLX models (mlx-community conversions, oMLX's own oQ quants) with continuous batching and an SSD prompt cache. Not installed yet; nothing run on plain MLX so far, only sushi (MLX with its own packs and kernels). Add an `omlx` process backend to `bench-mac.yaml` (OpenAI API, like sushi). Runs, in order of value:
+  - **Qwen3.8-Flash-Next at 4 bits:** a third data point between Strata (83.3% LCB on the R9700) and sushi (70% here), to tell whether sushi's quantization costs accuracy.
+  - **qwen3.8-27b or flint as MLX 4-bit vs the GGUF on llama.cpp (Metal):** whether plain MLX is faster than llama.cpp on this Mac, apart from sushi's own kernels.
+  - **Concurrency (`speed-concurrent`):** continuous batching against llama.cpp and DwarfStar, which batched worst (4 requests in flight were slower in total than llama.cpp).
+- [ ] **Push role recommendations to Foreman** (`~/dev/foreman`) once the Mac benchmarking above is done. Draft as of 2026-11-05: planner, reviewer and escalation on ds4-q4 (Mac); executors on ThinkingCap (R9700) and flint (Mac, llama.cpp). Before that: terminal-x3 on the Mac (needs Docker) for ds4-q4 and flint, to check tool calling. Revisit with the oMLX results, which could change the Mac executor pool (MLX builds of flint or qwen3.8-27b, continuous batching for several executors) and the planner (Qwen3.8-Flash-Next). Also update the "Mac prefill latency" risk row in Foreman's `specs/000-orchestrator/plan.md`, which rests on the old assumption.
+- [ ] **Tuning phase**: KV cache q8_0 vs f16 and `--cache-ram 0` on llama.cpp (`llama-bench -d 0,8192,32768`), MTP draft length, DwarfStar `--batched-session` and DSpark, sushi `--kv-quant 16` and MTP depth. Check quality on the winners.
+
 ## Tooling and housekeeping
 
 - [x] **Add tests.** *Done 2026-10-31:* `uv run pytest` covers `report.build`/`load_runs` and `dashboard.build_rows`/`quant`/`write_data`/`write_markdown` (16 tests, fixtures in `tests/conftest.py`).
