@@ -200,7 +200,14 @@ def collect_sysinfo(gpus: list[Gpu] | None = None) -> dict[str, Any]:
     for line in (_read(Path("/proc/meminfo")) or "").splitlines():
         if line.startswith("MemTotal:"):
             mem_kb = int(line.split()[1])
-    gpus = discover_gpus() if gpus is None else gpus
+    if platform.system() == "Darwin":   # no /proc on macOS
+        try:
+            out = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string", "hw.memsize"],
+                                 capture_output=True, text=True, timeout=5).stdout.split("\n")
+            cpu, mem_kb = out[0].strip() or cpu, int(out[1]) // 1024
+        except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+            pass
+    gpus =discover_gpus() if gpus is None else gpus
     info: dict[str, Any] = {
         "hostname": socket.gethostname(),
         "os": f"{platform.system()} {platform.release()}",

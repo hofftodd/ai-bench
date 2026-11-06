@@ -94,3 +94,53 @@ def test_write_data_and_markdown(tmp_path):
     assert (tmp_path / "data" / "meta.json").exists()
     md = dashboard.write_markdown(rows, tmp_path / "RESULTS.md", "r9700-vulkan").read_text()
     assert "Best on terminal-x3: **a** at 90%" in md and "1 of 1 models" in md
+
+
+def test_overnight_suites_per_machine_and_speed_fallback():
+    # a box without Docker: LiveCodeBench alone makes a model done; speed-quick-eos fills the speed columns
+    runs = [run("r1", [result("a", "livecodebench", LCB),
+                       result("a", "speed-quick-eos", {"tg@8k": metric(30.0, "tok/s")}),
+                       result("b", "speed-quick", {"tg@8k": metric(50.0, "tok/s")}),
+                       result("b", "speed-quick-eos", {"tg@8k": metric(1.0, "tok/s")})], hardware="mac")]
+    rows = _rows(runs, hardware="mac", overnight=("livecodebench",))
+    assert rows["a"]["overnight_status"] == "done" and rows["a"]["tg8k_tok_s"] == "30"
+    assert rows["b"]["tg8k_tok_s"] == "50"   # speed-quick wins when both exist
+
+
+def test_model_path_from_server_command():
+    res = result("d", "livecodebench", LCB, backend="ds4")
+    res["model_info"] = {"cmd": "ds4-server --metal -m /m/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8.gguf --port 8000"}
+    assert _rows([run("r1", [res])])["d"]["quant"] == "IQ2_XXS"
+
+
+def test_quant_from_engine_specific_names():
+    assert dashboard.quant("/m/DeepSeek-V4-Flash-Q4KExperts-F16HC-Q8Attn.gguf") == "Q4_K"
+    assert dashboard.quant("/x/GLM-5.3-Flash-Sushi-2.4bpw") == "2.4bpw"
+
+
+def test_markdown_without_terminal_drops_its_columns(tmp_path):
+    rows = dashboard.build_rows([run("r1", [result("a", "livecodebench", LCB)])], overnight=("livecodebench",))
+    md = dashboard.write_markdown(rows, tmp_path / "R.md", "mac", overnight=("livecodebench",), notes="Box notes.",
+                                  data_csv="dashboard/data-mac/models.csv").read_text()
+    assert "Best on LiveCodeBench: **a** at 60%" in md and "terminal-x3" not in md and "Terminal %" not in md
+    assert "Box notes." in md and "dashboard/data-mac/models.csv" in md
+
+
+def test_comparison_same_model_pairs_and_ratios(tmp_path):
+    base = dashboard.build_rows([run("r1", [result("m", "livecodebench", LCB, model_path="/m/m-Q4_K_M.gguf"),
+                                            result("m", "speed-quick", {"tg@8k": metric(50.0, "tok/s"),
+                                                                        "ttft@8k": metric(10.0, "s")}),
+                                            result("x", "livecodebench", LCB)])])
+    other = dashboard.build_rows([run("r2", [result("m", "speed-quick", {"tg@8k": metric(100.0, "tok/s"),
+                                                                         "ttft@8k": metric(5.0, "s")}),
+                                             result("y", "livecodebench", LCB, backend="ds4"),
+                                             result("z", "livecodebench", LCB)], hardware="mac")], hardware="mac")
+    out = tmp_path / "base.csv"
+    dashboard.write_data(base, tmp_path)
+    md = dashboard.write_comparison(dashboard.read_rows(tmp_path / "models.csv"), "R9700", other, "Mac",
+                                    tmp_path / "C.md", pairs={"y": "x"}).read_text()
+    assert "## Same GGUF on both machines" in md and "## Same model, different engine" in md
+    assert "| m | " in md and "2.00×" in md            # twice the tok/s, and half the TTFT, both read as 2×
+    assert "y (ds4) vs x (swap)" in md
+    assert "**Mac:** `z` (swap)" in md
+    assert not out.exists()

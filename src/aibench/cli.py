@@ -152,16 +152,31 @@ def rebuild_dashboard(cfg, root: Path | None = None, hardware: str | None = None
     """Rebuild dashboard/data/ and RESULTS.md from results/; returns the dashboard directory."""
     from . import dashboard
 
-    root = root or cfg.base_dir / "dashboard"
+    out_cfg, base = cfg.outputs, cfg.base_dir
+    root = root or base / "dashboard"
+    data_dir = base / out_cfg["data_dir"] if out_cfg.get("data_dir") else root / "data"
+    overnight = tuple(out_cfg.get("overnight") or dashboard.OVERNIGHT)
     hardware = hardware or cfg.hardware   # one box/backend per dashboard; ROCm runs carry another label
     runs = report.load_runs([cfg.results_dir])
-    rows = dashboard.build_rows(runs, hardware=hardware)
-    out = dashboard.write_data(rows, root / "data")
+    rows = dashboard.build_rows(runs, hardware=hardware, overnight=overnight)
+    out = dashboard.write_data(rows, data_dir)
     console.print(f"wrote {out} ({len(rows)} models)")
     other = hardware.replace("-vulkan", "-rocm")   # the *-rocm model twins run under this label
     compare = dashboard.compare_rows(runs, hardware, other) if other != hardware else []
-    md = dashboard.write_markdown(rows, cfg.base_dir / "RESULTS.md", hardware, compare, other)
+    md = dashboard.write_markdown(rows, base / out_cfg.get("results_md", "RESULTS.md"), hardware, compare, other,
+                                  overnight=overnight, notes=out_cfg.get("notes", ""),
+                                  data_csv=str(out.relative_to(base)) if out.is_relative_to(base) else str(out))
     console.print(f"wrote {md}")
+    if (cmp := cfg.compare) and (bl := cmp.get("baseline")):   # another machine's published models.csv
+        bcsv = base / bl["csv"]
+        if bcsv.exists():
+            cmp_md = dashboard.write_comparison(
+                dashboard.read_rows(bcsv), bl.get("label", "baseline"), rows, cmp.get("label", hardware),
+                base / cmp.get("out", "RESULTS-compare.md"), cmp.get("pairs"), cmp.get("notes", ""),
+                (bl["csv"], str(out.relative_to(base)) if out.is_relative_to(base) else str(out)))
+            console.print(f"wrote {cmp_md}")
+        else:
+            console.print(f"[yellow]compare: {bcsv} not found, skipped[/]")
     return root
 
 

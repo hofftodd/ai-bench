@@ -46,6 +46,11 @@ class Config:
     profiles: dict[str, list[str]]
     plugins: list[str]
     monitor_gpus: str | list[str]
+    # Where `aibench dashboard` writes, and which suites make a model "done" (see dashboard.py):
+    # results_md (RESULTS.md), data_dir (dashboard/data), overnight ([terminal-x3, livecodebench]).
+    outputs: dict[str, Any] = field(default_factory=dict)
+    # Cross-machine comparison (dashboard.write_comparison): baseline {label, csv}, pairs, out.
+    compare: dict[str, Any] = field(default_factory=dict)
 
     @property
     def base_dir(self) -> Path:
@@ -123,4 +128,6 @@ def load_config(path: str | Path | None) -> Config:
         profiles=raw.get("profiles") or {},
         plugins=raw.get("plugins") or [],
         monitor_gpus=raw.get("monitor_gpus", "auto"),
+        outputs=raw.get("outputs") or {},
+        compare=raw.get("compare") or {},
     )
