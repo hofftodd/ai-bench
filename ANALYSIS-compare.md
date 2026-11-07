@@ -1,6 +1,6 @@
 # R9700 vs Mac Studio
 
-How the same models do on the two machines: the Radeon AI PRO R9700 box (32 GB VRAM, llama.cpp b11850 on Vulkan, plus Strata) and the Mac Studio (M5 Ultra, 256 GB unified memory, llama.cpp b12098 on Metal, plus DwarfStar, sushi and oMLX). The tables are in [RESULTS-compare.md](RESULTS-compare.md). Each machine's own analysis is in [ANALYSIS.md](ANALYSIS.md) (R9700) and [ANALYSIS-mac.md](ANALYSIS-mac.md) (Mac). Last updated 2026-11-06 16:00.
+How the same models do on the two machines: the Radeon AI PRO R9700 box (32 GB VRAM, llama.cpp b11850 on Vulkan, plus Strata) and the Mac Studio (M5 Ultra, 256 GB unified memory, llama.cpp b12098 on Metal, plus DwarfStar, sushi and oMLX). The tables are in [RESULTS-compare.md](RESULTS-compare.md). Each machine's own analysis is in [ANALYSIS.md](ANALYSIS.md) (R9700) and [ANALYSIS-mac.md](ANALYSIS-mac.md) (Mac). Last updated 2026-11-06 22:00.
 
 > The Mac's benchmark queue is complete. Its 128k results are in [ANALYSIS-mac.md](ANALYSIS-mac.md#128k-for-the-models-still-cut-off-at-64k); the R9700 never ran 128k.
 
@@ -11,7 +11,7 @@ How the same models do on the two machines: the Radeon AI PRO R9700 box (32 GB V
 - **For models that fit in the R9700's 32 GB, the Mac is 1.1–1.7× faster.** Raw generation is 1.3–1.6× faster, and LiveCodeBench finishes in half the time. Prompt processing on the dense 27B is a tie.
 - **For models that don't fit, it isn't close.** DeepSeek V4 Flash generates 4× faster and processes prompts 20–28× faster on the Mac. Its LiveCodeBench run took 2 hours instead of 15. On the R9700, most of its experts sit in system RAM behind a PCIe 3.0 x4 link. On the Mac, all of them are in GPU memory.
 - **The Mac runs a class of models the R9700 can't hold.** GLM-5.3-Flash (93 GB), MiMo-V2.6-Flash (101 GB), Qwen3.8-Flash-Next at 4 bits (159 GB) and DeepSeek at Q4 (153 GB) all run fully resident.
-- **The same model scores differently on different engines.** Qwen3.8-Flash-Next scored 83.3% twice on Strata (R9700) and 63–70% on sushi (Mac). On llama.cpp on the Mac it scored 76.7% at 64k, within noise of Strata. The gap was sushi, not the Mac: sushi's answers are a quarter as long as llama.cpp's. sushi generates 2× faster than Strata (138 vs 68 tok/s at 8k); llama.cpp is slower than both (47).
+- **The same model scores differently on different engines.** Qwen3.8-Flash-Next scored 83.3% twice on Strata (R9700) and 63–70% on sushi (Mac). On the Mac's llama.cpp it scored 76.7% at 64k, and on oMLX 73.3%, both within noise of Strata. The gap was sushi, not the Mac: sushi's answers are a quarter as long. oMLX matched llama.cpp's quality at twice its speed, so on the Mac it's the engine for this model.
 
 ---
 
@@ -91,12 +91,14 @@ These pair each machine's best engine for a model. Engine, quant and hardware al
 | DeepSeek V4 Flash | llama.cpp, UD-Q2_K_XL | DwarfStar, Q4_K (`ds4-q4`) | 60.0 / 76.7 | 80.0 / **93.3** | 910 / 168 |
 | Qwen3.8-Flash-Next | Strata, IQ3_S | sushi, 4bpw | **83.3** / 70.0 | — / 63.3, 63.3 | 115 / 27 |
 | Qwen3.8-Flash-Next | Strata, IQ3_S | llama.cpp, UD-Q4_K_XL | **83.3** / 53.3 | — / 76.7 | 115 / 90 |
+| Qwen3.8-Flash-Next | Strata, IQ3_S | oMLX, oQ4e + MTP | **83.3** / 50.0 | — / 73.3 | 115 / 59 |
 
 - **DeepSeek:** at 32k, DwarfStar led llama.cpp by 13–17 points, but most of that was llama.cpp's answers being cut off. At 64k the 2-bit builds are 1–2 problems apart. The Q4 build is 3–4 problems above them, and Q4 > 2-bit DwarfStar > llama.cpp held at both budgets. So the larger quant probably helps; the engine, if at all, only a little.
 - **Qwen3.8-Flash-Next:**
   - sushi's three runs average 65.6% against Strata's 83.3% twice, with almost nothing cut off on either. That gap is real, not noise.
   - **llama.cpp on the Mac closes most of it: 76.7% at 64k,** 2 problems below Strata and within noise. Its answers average 29k tokens against sushi's 7k, so sushi makes the model reason far less. The Mac's hardware isn't the cause.
-  - llama.cpp needs the room: at 32k it scored 53.3%, with 14 of 30 answers cut off.
+  - **oMLX matches llama.cpp:** 73.3% at 64k with answers just as long (34k tokens), in 100 minutes instead of 208. So the short reasoning is a sushi trait, not an MLX one.
+  - llama.cpp and oMLX need the room: at 32k they scored 53.3% and 50.0%, with 14 of 30 answers cut off on each.
   - Strata reached 83.3% at 32k with nothing cut off, so its answers are shorter than llama.cpp's and yet at least as good. Strata also ran with its own sampling defaults (aibench sent none), where the Mac's engines got Qwen's thinking-mode settings. Its answer lengths and sampling, in the R9700's run.json, are the next thing to check. [ANALYSIS-mac.md](ANALYSIS-mac.md#qwen38-flash-next-on-three-engines) has the details.
 - **Speed, one request at a time:**
 
@@ -104,7 +106,7 @@ These pair each machine's best engine for a model. Engine, quant and hardware al
   |---|---|---|---|
   | DeepSeek, generation @8k | 9.0 (llama.cpp) | 58.0 (ds4-q2) / 55.7 (ds4-q4) | 6.4× / 6.2× |
   | DeepSeek, time to first token @8k | 197 s | 7.8 s / 9.0 s | 25× / 22× |
-  | Qwen3.8-Flash-Next, generation @8k | 67.8 (Strata) | 138 (sushi) / 47.1 (llama.cpp) | 2.0× / 0.69× |
+  | Qwen3.8-Flash-Next, generation @8k | 67.8 (Strata) | 138 (sushi) / 96–154 (oMLX, MTP) / 47.1 (llama.cpp) | 2.0× / 1.4–2.3× / 0.69× |
   | Qwen3.8-Flash-Next, time to first token @8k | 10.5 s | 2.4 s / 5.9 s | 4.4× / 1.8× |
 
   DwarfStar is 1.6× faster than llama.cpp per request on the same Mac, on top of the hardware gap. It batches worse, though: with 4 requests in flight its LiveCodeBench run was slower than llama.cpp's (see [ANALYSIS-mac.md](ANALYSIS-mac.md#dwarfstar-vs-llamacpp-on-the-same-mac)).
@@ -123,5 +125,5 @@ These pair each machine's best engine for a model. Engine, quant and hardware al
 
 - **Models up to ~30 GB:** either machine gives the same answers. The Mac is 1.1–1.3× faster in serving at 8k and about 2× faster on long reasoning runs. The R9700 is good enough for these; the Mac is better.
 - **Anything bigger** (DeepSeek, GLM-5.3-Flash, MiMo-V2.6-Flash, Qwen3.8-Flash-Next above 3 bits): **the Mac.** On the R9700 these models run with experts in system RAM, or not at all.
-- **The R9700 no longer has the best solver.** ds4-q4's 93.3% at 64k beats Strata's 83.3%, though Strata ran at 32k and never at 64k (it had nothing cut off, so it likely wouldn't gain). Strata keeps a real edge over sushi's build of the same model (83.3% against 63–70%), but not over the Mac as such: the same model on the Mac's llama.cpp scored 76.7% at 64k, within noise of Strata.
+- **The R9700 no longer has the best solver.** ds4-q4's 93.3% at 64k beats Strata's 83.3%, though Strata ran at 32k and never at 64k (it had nothing cut off, so it likely wouldn't gain). Strata keeps a real edge over sushi's build of the same model (83.3% against 63–70%), but not over the Mac as such: the same model scored 76.7% at 64k on the Mac's llama.cpp and 73.3% on oMLX, within noise of Strata. On oMLX it's also 1.4–2.3× faster than Strata per request.
 - **Models only the Mac can run so far:** Inkling-Small (153 GB at 4 bits) scored 70.0% on LiveCodeBench at 32k and 64k on oMLX. On the R9700 it's still blocked on llama.cpp support.

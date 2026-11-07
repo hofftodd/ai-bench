@@ -1,8 +1,8 @@
 # Analysis of the Mac Studio runs
 
-The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3–6, 2026: three of the R9700's models on llama.cpp (Metal), DeepSeek V4 Flash on [DwarfStar](https://github.com/antirez/ds4) (`ds4`), three large MoE models on [sushi](https://github.com/beamivalice/sushi) (MLX), then Qwen3.8-Flash-Next on llama.cpp and Inkling-Small on [oMLX](https://github.com/jundot/omlx) (MLX). The numbers are in [RESULTS-mac.md](RESULTS-mac.md); [ANALYSIS-compare.md](ANALYSIS-compare.md) sets them against the R9700. Last updated 2026-11-06 16:00.
+The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3–6, 2026: three of the R9700's models on llama.cpp (Metal), DeepSeek V4 Flash on [DwarfStar](https://github.com/antirez/ds4) (`ds4`), three large MoE models on [sushi](https://github.com/beamivalice/sushi) (MLX), then Qwen3.8-Flash-Next on llama.cpp and on [oMLX](https://github.com/jundot/omlx) (MLX), and Inkling-Small on oMLX. The numbers are in [RESULTS-mac.md](RESULTS-mac.md); [ANALYSIS-compare.md](ANALYSIS-compare.md) sets them against the R9700. Last updated 2026-11-06 22:00.
 
-> **The benchmark queue is complete.** Section 1 covers LiveCodeBench at 64k and 128k, plus two later runs: Qwen3.8-Flash-Next on llama.cpp and Inkling-Small on oMLX. Sections 2–3 are from the first (32k) sweep; section 4 has the picks. Next on this machine: tuning, sushi 1.5.0, more oMLX runs, DeepSeek V4.1 and Inkling 2 Small ([TODO.md](TODO.md#mac-studio-future)).
+> **The benchmark queue is complete.** Section 1 covers LiveCodeBench at 64k and 128k, plus later runs: Qwen3.8-Flash-Next on llama.cpp and oMLX, Inkling-Small on oMLX, and the [oMLX verdict](#should-we-lean-on-omlx). Sections 2–3 are from the first (32k) sweep; section 4 has the picks. Next on this machine: flint and qwen3.8-27b on oMLX (queued), tuning, sushi 1.5.0, DeepSeek V4.1 and Inkling 2 Small ([TODO.md](TODO.md#mac-studio-future)).
 
 **In short:**
 
@@ -12,9 +12,10 @@ The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3
 - **flint is the best value:** 80.0% at 64k in 79 minutes, from a ~20 GB model. The DeepSeek builds take 174–230 minutes for 3–4 more problems.
 - **GLM-5.3-Flash and MiMo-V2.6-Flash are verbose and weaker.** Even at 128k they score 63–70%, with 5–8 answers still cut off and 48–55k-token answers on average. Neither is worth running here for coding.
 - **Qwen3.8-Flash-Next's sushi gap is the engine, not the model.** On llama.cpp it scored **76.7% at 64k**, against 63–70% on sushi and 83.3% on Strata (R9700). Its answers average 29k tokens on llama.cpp and 7k on sushi: sushi makes the model think about a quarter as long. llama.cpp needs the room, though: at 32k it scored 53.3% with 14 of 30 answers cut off.
+- **oMLX looks like the engine to lean on for MoE models here.** It ran Qwen3.8-Flash-Next at llama.cpp's quality (73.3% at 64k against 76.7%, with equally long reasoning), finished the run in half the time, and batched best of the three engines: 211 tok/s in total with 8 requests in flight, against 135 on sushi and 99 on llama.cpp. flint and qwen3.8-27b on oMLX are queued to check that it holds beyond one model.
 - **Inkling-Small (Thinking Machines, 276B / 12B active) runs well on oMLX: 70.0% at both 32k and 64k,** with concise 13–16k-token answers, nothing cut off at 64k, and 63 tok/s at 8k. A solid mid-pack model, below flint and the DeepSeek builds. It's the warm-up for Inkling 2 Small, whose weights aren't out yet.
 - **Everything that runs on both machines scores the same here.** qwen3.8-27b and DeepSeek V4 Flash got exactly their R9700 LiveCodeBench scores (56.7% and 60.0%), with nearly the same number of cut-off answers. The harness and the Metal build are sound.
-- **Qwen3.8-Flash-Next on sushi is the fastest model here:** 138 tok/s at 8k context and 2.4 s to first token. Its LiveCodeBench runs take under 32 minutes because its answers are short (about 7k tokens), and none was cut off at 64k.
+- **Qwen3.8-Flash-Next is the fastest model here,** on sushi or oMLX: 138 tok/s at 8k on sushi and 96–154 on oMLX with MTP, about 2 s to first token. sushi's runs are shortest (under 32 minutes for LiveCodeBench) because its answers are short (about 7k tokens), which is also why it scores lower.
 - **No throttling.** macOS logged no thermal or performance warnings over about 70 hours of near-continuous load, and llama-bench speeds before and after long runs agree within 2%.
 
 ---
@@ -25,6 +26,7 @@ The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3
 |---|---|
 | Machine | Mac Studio, M5 Ultra, 256 GB unified memory, macOS 27.2 |
 | Engines | llama.cpp b12098 (Metal, started by aibench with llama-swap's flags: q8_0 KV cache, flash attention, 4 slots), DwarfStar (`ds4-server --metal --batched-session 4`), sushi 1.4.1 (MLX), oMLX 0.7.3 (MLX, up to 8 requests at once) |
+| Concurrency | `speed-concurrent-eos`: a 1k-token prompt and 256 generated tokens per request, at 1, 2, 4 and 8 requests in flight (EOS allowed, as in `speed-quick-eos`) |
 | Profile | `mac`: `speed-quick`, `humaneval-quick` (40 problems), `livecodebench` (15 medium + 15 hard, 32k tokens), `kernels` (llama-bench). The sushi and ds4 models run `mac-engine` (no llama-bench) and measure speed with `speed-quick-eos`. |
 | Config | [`bench-mac.yaml`](bench-mac.yaml): same model keys, GGUFs and sampling as the R9700's `bench.yaml`, so results compare model for model |
 
@@ -46,6 +48,7 @@ Same 30 problems (15 medium, 15 hard) as the 32k run, with `max_tokens` 65,536 a
 | flint | llama.cpp, UD-Q4_K_XL | 66.7 | 80.0 | 7 → 2 | 93.3 / 66.7 | 23.0k | **79** |
 | qwen3.8-27b | llama.cpp, UD-Q4_K_XL | 56.7 | 70.0 | 12 → 8 | 93.3 / 46.7 | 33.1k | 224 |
 | Qwen3.8-Flash-Next | llama.cpp, UD-Q4_K_XL | 53.3 | 76.7 | 14 → 5 | 93.3 / 60.0 | 29.0k | 208 |
+| Qwen3.8-Flash-Next | oMLX, oQ4e + MTP | 50.0 | 73.3 | 14 → 7 | 93.3 / 53.3 | 34.3k | **100** |
 | Inkling-Small | oMLX, 4-bit | 70.0 | 70.0 | 4 → **0** | 86.7 / 53.3 | 13.4k | 56 |
 | Qwen3.8-Flash-Next | sushi, 4bpw | 70.0 | 63.3, 63.3 | 1 → 0, 0 | 80.0 / 46.7 (mean of 2) | 7.3k | 31, 27 |
 | GLM-5.3-Flash | sushi, 2.4bpw | 50.0 | 60.0 | 15 → 11 | 80.0 / 40.0 | 30.7k | 183 |
@@ -57,7 +60,7 @@ What it shows:
 - **DeepSeek V4 Flash is in a class of its own on hard problems,** and the build matters: Q4 on DwarfStar 93.3%, 2-bit on DwarfStar 80.0%, 2-bit on llama.cpp 73.3%. That's the same order as at 32k (76.7 > 73.3 > 60.0). Any single gap is within noise, but the same order twice suggests both the larger quant and DwarfStar help a little.
 - **ds4-q4 thinks least and solves most.** Its answers average 18k tokens against 22k for the 2-bit builds, so the higher-precision experts seem to reach answers more directly. That's also why it was the fastest DeepSeek run at 64k despite generating at the same speed as ds4-q2.
 - **DwarfStar's 32k lead over llama.cpp was mostly the budget.** llama.cpp's DeepSeek had 10 answers cut off at 32k and none at 64k; with room to finish, it came within 1 problem of ds4-q2.
-- **Qwen3.8-Flash-Next depends on its engine more than any other model here.** See [the section below](#qwen38-flash-next-on-three-engines).
+- **Qwen3.8-Flash-Next depends on its engine more than any other model here.** See [the section below](#qwen38-flash-next-on-four-engines).
 - **flint solves 24 problems in 79 minutes,** about 18 an hour, against 9.7 an hour for ds4-q4 and (at 32k) 46 an hour for Qwen3.8-Flash-Next on sushi.
 - **qwen3.8-27b, GLM and MiMo still need more room:** 8–11 cut-offs and 31–33k-token average answers. MiMo's drop (63.3 → 56.7) is 2 problems, within noise; its medium score (66.7%) is the weakest here.
 - **Noise is real at this sample size.** flint scored 80.0% here and 66.7% on the R9700 at 64k with the same GGUF (see [ANALYSIS-compare.md](ANALYSIS-compare.md#the-same-gguf-at-64k)). A 4-problem swing between two identical setups is the scale of difference these runs can't resolve.
@@ -78,21 +81,50 @@ The llama.cpp DeepSeek build and ds4-q4 had nothing cut off at 64k, so they skip
 - **GLM and MiMo are verbose, not hidden strong solvers.** Their answers average 48–55k tokens (GLM's are the longest of any model here), they still had 5–8 answers cut off at 128k, and on hard problems they solve 33–53%, where qwen3.8-27b solves 80% and ds4-q4 93% with far shorter answers.
 - **flint and ds4-q2 each lost 2 problems.** Both had only 2 answers cut off at 64k, so the bigger budget couldn't add much, and the drop is the run-to-run noise of a 30-problem sample: about ±2 problems. Read flint as 73–80% and ds4-q2 as 83–87%.
 
-### Qwen3.8-Flash-Next on three engines
+### Qwen3.8-Flash-Next on four engines
 
-The same model on three engines, with the chat template's default `reasoning_effort: xhigh` on all three:
+The same model on four engines, with the chat template's default `reasoning_effort: xhigh` on all of them:
 
 | engine, quant | machine | LCB 32k | LCB 64k | cut off 32k / 64k | avg answer | gen @8k | 64k min |
 |---|---|---|---|---|---|---|---|
 | Strata, IQ3_S | R9700 | **83.3** (twice) | — | 0 / — | not checked | 67.8 | — |
 | llama.cpp, Unsloth UD-Q4_K_XL | Mac | 53.3 | **76.7** | 14 / 5 | 21.7k / 29.0k | 47.1 | 208 |
+| oMLX, oQ4e (4.8 bits/weight) + MTP | Mac | 50.0 | 73.3 | 14 / 7 | 23.7k / 34.3k | 96–154 | **100** |
 | sushi, 4bpw | Mac | 70.0 | 63.3, 63.3 | 1 / 0, 0 | 7.1k / 7.3k | 138 | 27–31 |
 
 - **sushi cuts the model's reasoning short.** On llama.cpp the same model writes about 4× as many tokens per answer and solves 4 more problems at 64k, including 9 of 15 hard ones against sushi's 7. So sushi's low score isn't a weakness of the model; it's how sushi runs it. A lower effective reasoning effort, a different template, or sushi's quantization trimming the long reasoning are all possible; sushi's quant is the least likely, since its pack has more bits than Strata's.
-- **llama.cpp needs a 64k budget for this model.** At 32k, 14 of 30 answers ran out, and it scored lowest of the three engines.
+- **oMLX behaves like llama.cpp, not like sushi.** One problem apart at both budgets, the same 14 answers cut off at 32k, and answers just as long. So the short reasoning is specific to sushi, not to MLX.
+- **llama.cpp and oMLX need a 64k budget for this model.** At 32k, 14 of 30 answers ran out on both, and they scored lowest of the engines.
 - **llama.cpp at 64k and Strata at 32k are 2 problems apart,** within noise. So on hard problems the Mac's llama.cpp build is as good as the R9700's Strata, but slower per answer.
 - **Strata is still the puzzle.** It scored 83.3% at 32k with nothing cut off, so its answers must be well under 32k tokens, yet it solved more than llama.cpp did. Strata's sampling also differs: aibench sent no sampling parameters to it, so it used its own defaults, where llama.cpp and sushi got Qwen's thinking-mode settings (temperature 1.0, top_p 0.95, top_k 20). Strata's answer lengths and sampling are in the R9700's run.json.
-- **Speed vs depth:** sushi answers 4–7× faster than llama.cpp, at 13 points less. For quick interactive turns, sushi; for hard problems on this model, llama.cpp at 64k. flint at 64k (80.0%, 79 min, ~20 GB) beats both for most uses.
+- **Speed vs depth:** sushi answers 4–7× faster than llama.cpp, at 13 points less. oMLX keeps llama.cpp's depth at twice its speed, so it replaces llama.cpp for this model. flint at 64k (80.0%, 79 min, ~20 GB) is still the better all-round pick.
+
+### Should we lean on oMLX?
+
+**Probably yes, for MoE models.** One model so far; flint and qwen3.8-27b on oMLX are queued to test that it generalizes. Qwen3.8-Flash-Next on oMLX 0.7.3, as oMLX's own oQ4e quant (`Jundot/Qwen3.8-Flash-Next-oQ4e-mtp`, 108 GB, 4.8 bits/weight, with the MTP head on):
+
+**One request at a time** (tok/s):
+
+| engine | prompt @8k | gen @512 | gen @8k | first token @8k |
+|---|---|---|---|---|
+| llama.cpp (no drafter) | 1,400 | 49.7 | 47.1 | 5.9 s |
+| sushi (MTP) | 3,508 | 134 | 138 | 2.4 s |
+| oMLX (MTP), two runs | 3,492–4,007 | 164–250 | 96–154 | 2.0–2.4 s |
+
+**Total generation with several requests in flight** (tok/s, `speed-concurrent-eos`):
+
+| requests in flight | 1 | 2 | 4 | 8 |
+|---|---|---|---|---|
+| llama.cpp (4 slots) | 39 | 61 | 99 | 99 |
+| sushi | 92 | 120 | 134 | 135 |
+| oMLX (MTP) | 135 | 137 | **179** | **211** |
+
+- **Same quality as llama.cpp** (above), and the 64k run took 100 minutes instead of 208. Per request it generated 59.5 tok/s during that run against llama.cpp's 24.3, with 3 requests in flight: the most realistic speed figure here, and 2.4×.
+- **oMLX batches best.** It was still gaining at 8 requests, where llama.cpp (4 slots) and sushi leveled off. That's what several agents sharing the Mac need.
+- **MTP speed is noisy.** Two runs with identical settings gave 96 and 154 tok/s at 8k. oMLX's MTP adapts its draft depth to the acceptance rate and also copies tokens from the prompt, so the speed depends on the text. Its gain also fades under load: from 2 requests up, per-request speed was the same with or without it. Treat single-request oMLX speed as a range until more runs narrow it.
+- **sushi keeps prompt processing fast under load** (about 2,700 tok/s per request at 8 in flight, against about 450 on oMLX). First tokens still arrived in about 2 s on both.
+- **Setup notes.** oMLX turns MTP on by default for any checkpoint with MTP weights, saving that in `~/.omlx/model_settings.json` on first load; the run meant to measure oMLX without MTP had it on, so it was discarded and re-queued. It also rejects prompts over 32,768 tokens unless the model's config states a context length (raised to 135,168 in `~/.omlx/settings.json`).
+- **Caveats:** the quants differ (oMLX's oQ4e vs Unsloth's UD-Q4_K_XL), so this isn't a pure engine comparison; tool calling is untested (the terminal suite needs Docker); and oMLX 0.7 is young.
 
 ### Inkling-Small on oMLX
 
@@ -181,10 +213,11 @@ qwen3.8-27b runs with an MTP drafter. Its server speed is 94 tok/s after a 512-t
 In order of value:
 
 1. **A second 64k pass for ds4-q4 and flint,** the two results the recommendations below lean on most.
-2. **Strata's answer lengths and sampling** from the R9700's run.json, and **Qwen3.8-Flash-Next on oMLX,** to finish the engine comparison: llama.cpp showed that sushi's gap comes from shorter reasoning.
-3. **`llama-bench -d 8192`** for qwen3.8-27b, to explain the drafter's long-context drop (a couple of minutes).
-4. **Install Docker** (OrbStack or Docker Desktop) and run `terminal-x3`, the agentic suite. It's the R9700's main ranking signal, and it's missing here.
-5. **ThinkingCap and Strata's model on llama.cpp.** ThinkingCap is the R9700's best model that fits in VRAM, so it's the obvious next llama.cpp comparison.
+2. **flint and qwen3.8-27b on oMLX** (queued): does oMLX's lead hold for a small-active MoE and a dense model? Plus Flash-Next on oMLX with MTP really off.
+3. **Strata's answer lengths and sampling** from the R9700's run.json, to explain how Strata scores 83.3% at 32k with nothing cut off.
+4. **`llama-bench -d 8192`** for qwen3.8-27b, to explain the drafter's long-context drop (a couple of minutes).
+5. **Install Docker** (OrbStack or Docker Desktop) and run `terminal-x3`, the agentic suite. It's the R9700's main ranking signal, and it's missing here.
+6. **ThinkingCap and Strata's model on llama.cpp.** ThinkingCap is the R9700's best model that fits in VRAM, so it's the obvious next comparison (on llama.cpp and oMLX).
 
 [TODO.md](TODO.md#mac-studio-future) lists the later work: sushi 1.5.0, DeepSeek V4.1 Flash, oMLX and the tuning experiments.
 
@@ -195,7 +228,7 @@ In order of value:
 | Hardest problems | **DeepSeek V4 Flash on DwarfStar (ds4-q4)** | 93.3% at 64k, 14 of 15 hard; same speed as ds4-q2, so take Q4 when 153 GB is free. Give it a 64k output budget. |
 | Hard problems, small footprint | **qwen3.8-27b** (llama.cpp) | 86.7% at 128k from 17.5 GB, but 39k-token answers; give it a 128k budget |
 | Strong and fast | **flint** (llama.cpp) | 73–80% at 64k–128k in under 80 min; 99 tok/s at 8k, 1.9 s TTFT, 4 slots in ~20 GB |
-| Fastest, interactive | **Qwen3.8-Flash-Next on sushi** | 138 tok/s at 8k, 2.4 s TTFT, but 63–70% on LiveCodeBench; good for quick turns, not hard problems. On llama.cpp the same model reaches 76.7% at 64k, but at 47 tok/s, where flint is the better choice. |
+| Fastest, interactive | **Qwen3.8-Flash-Next on oMLX** | 96–154 tok/s at 8k with MTP, 2.0 s TTFT, and llama.cpp's quality (73–77% at 64k), where sushi's build scores 63–70%. Batches best of any engine here. |
 | Worth watching | Inkling-Small (oMLX) | 70% at 32k and 64k with short answers; below flint. Inkling 2 Small may change this. |
 | Not recommended | GLM-5.3-Flash, MiMo-V2.6-Flash | 63–70% even at 128k, with 48–55k-token answers |
 

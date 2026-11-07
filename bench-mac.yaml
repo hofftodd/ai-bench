@@ -38,6 +38,7 @@ compare:
     ds4-q4: deepseek-v4-flash
     sushi-qwen3.8-flash-next-4bpw: strata
     qwen3.8-flash-next: strata
+    omlx-qwen3.8-flash-next-mtp: strata
   notes: >-
     **R9700:** Radeon AI PRO R9700 (32 GB) on llama.cpp b11850 (Vulkan), with Strata for Qwen3.8-Flash-Next.
     **Mac:** Mac Studio M5 Ultra (256 GB unified memory) on llama.cpp b12098 (Metal), DwarfStar, sushi and oMLX (MLX).
@@ -163,6 +164,39 @@ models:
     max_tokens: 32768
     params: {temperature: 1.0}
 
+  # Qwen3.8-Flash-Next as oMLX's own oQ4e quant (Jundot/Qwen3.8-Flash-Next-oQ4e-mtp, oMLX 0.7.3, 4.8 bits/weight,
+  # 108 GB), to judge oMLX against llama.cpp and sushi on the same model. Two ids for the same files (symlinks in
+  # ~/models/omlx): MTP off, and MTP on (`mtp_enabled` in ~/.omlx/model_settings.json; adaptive depth).
+  omlx-qwen3.8-flash-next:
+    backend: omlx
+    id: qwen3.8-flash-next-oq4e
+    gguf: ~/models/omlx
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20}   # Qwen's thinking-mode defaults, as on llama.cpp and sushi
+  omlx-qwen3.8-flash-next-mtp:
+    backend: omlx
+    id: qwen3.8-flash-next-oq4e-mtp
+    gguf: ~/models/omlx
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20}
+
+  # The two llama.cpp workhorses as oMLX oQ4e quants, to see whether oMLX's lead on Flash-Next holds for a dense
+  # model and a small-active MoE. Same sampling as their llama.cpp entries. qwen3.8-27b runs with MTP (its embedded
+  # head; llama.cpp uses an MTP drafter), flint without (no drafter on llama.cpp). MTP on/off is set per id in
+  # ~/.omlx/model_settings.json; oMLX turns MTP on by default for any checkpoint that has MTP weights.
+  omlx-qwen3.8-27b:
+    backend: omlx
+    id: qwen3.8-27b-oq4e-mtp          # Jundot/Qwen3.8-27B-oQ4e-mtp, 17.5 GB
+    gguf: ~/models/omlx
+    max_tokens: 32768
+    params: {temperature: 0.6, top_p: 0.95, top_k: 20}
+  omlx-flint:
+    backend: omlx
+    id: flint-oq4e                    # mlx-community/flint-oQ4e, 23.4 GB
+    gguf: ~/models/omlx
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20, keep_reasoning: true}
+
 suites:                       # copied from bench.yaml so the settings match exactly
   speed-quick:
     type: throughput
@@ -174,6 +208,13 @@ suites:                       # copied from bench.yaml so the settings match exa
     prompt_tokens: [512, 8192]
     gen_tokens: 128
     repeats: 2
+    ignore_eos: false
+  speed-concurrent-eos:       # bench.yaml's speed-concurrent without ignore_eos (for sushi/ds4/oMLX), plus 8 in flight
+    type: throughput
+    prompt_tokens: [1024]
+    gen_tokens: 256
+    repeats: 2
+    concurrency: [1, 2, 4, 8]
     ignore_eos: false
   humaneval-quick:
     type: humaneval-plus
