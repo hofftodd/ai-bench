@@ -56,6 +56,16 @@ backends:
            --cache-type-k, q8_0, --cache-type-v, q8_0]
     startup_timeout: 1800     # DeepSeek reads ~91 GB on first load
 
+  # llama.cpp b12192, built beside the b12098 above (~/src/llama.cpp-b12192) for Ripple-65B, which
+  # needs b12167+. Same flags as `metal`, so the older llama.cpp results stay comparable.
+  metal-b12192:
+    type: llama-server
+    binary: ~/src/llama.cpp-b12192/build/bin/llama-server
+    port: 5897
+    args: [--n-gpu-layers, 99, --flash-attn, auto, --jinja, --parallel, 4,
+           --cache-type-k, q8_0, --cache-type-v, q8_0]
+    startup_timeout: 1800
+
   # sushi (MLX, https://github.com/beamivalice/sushi, Homebrew beamivalice/tap). Serves one pack; the
   # model's `gguf:` holds the pack directory. Qwen/MiMo run their native MTP head by default.
   sushi:
@@ -90,6 +100,16 @@ models:
     # 4 slots x 135,168: room for a 128k answer plus its prompt in each (llama-server splits ctx over slots)
     args: [--ctx-size, 540672, --model-draft, ~/models/qwen3.8-27b/MTP/mtp-Qwen3.8-27B-Q4_0.gguf,
            --spec-type, draft-mtp]
+
+  # Ripple-65B Preview (Ricursive, Nov 2026): 65B dense, Apache-2.0, post-trained for agentic coding.
+  # AtomicChat's imatrix AD-Q4_K_M (40.4 GB). Ricursive publishes no sampling defaults; these are ours.
+  ripple-65b:
+    backend: metal-b12192
+    id: ripple-65b
+    gguf: ~/models/ripple-65b/Ripple-65B-Preview-AD-Q4_K_M.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95}
+    args: [--ctx-size, 540672]        # 4 slots x 135,168 (see qwen3.8-27b)
 
   flint:
     backend: metal

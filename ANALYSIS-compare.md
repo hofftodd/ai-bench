@@ -1,8 +1,8 @@
 # R9700 vs Mac Studio
 
-How the same models do on the two machines: the Radeon AI PRO R9700 box (32 GB VRAM, llama.cpp b11850 on Vulkan, plus Strata) and the Mac Studio (M5 Ultra, 256 GB unified memory, llama.cpp b12098 on Metal, plus DwarfStar, sushi and oMLX). The tables are in [RESULTS-compare.md](RESULTS-compare.md). Each machine's own analysis is in [ANALYSIS.md](ANALYSIS.md) (R9700) and [ANALYSIS-mac.md](ANALYSIS-mac.md) (Mac). Last updated 2026-11-07 09:00.
+How the same models do on the two machines: the Radeon AI PRO R9700 box (32 GB VRAM, llama.cpp b11850 on Vulkan, plus Strata) and the Mac Studio (M5 Ultra, 256 GB unified memory, llama.cpp b12098 on Metal, plus DwarfStar, sushi and oMLX). The tables are in [RESULTS-compare.md](RESULTS-compare.md). Each machine's own analysis is in [ANALYSIS.md](ANALYSIS.md) (R9700) and [ANALYSIS-mac.md](ANALYSIS-mac.md) (Mac). Last updated 2026-11-07 15:30.
 
-> The Mac's benchmark queue is complete. Its 128k results are in [ANALYSIS-mac.md](ANALYSIS-mac.md#128k-for-the-models-still-cut-off-at-64k); the R9700 never ran 128k.
+> The Mac's terminal-suite and 6-bit runs are in; Ripple-65B Preview (Mac only) is running now. The Mac's 128k results are in [ANALYSIS-mac.md](ANALYSIS-mac.md#128k-for-the-models-still-cut-off-at-64k); the R9700 never ran 128k.
 
 **In short:**
 
@@ -12,6 +12,7 @@ How the same models do on the two machines: the Radeon AI PRO R9700 box (32 GB V
 - **For models that don't fit, it isn't close.** DeepSeek V4 Flash generates 4× faster and processes prompts 20–28× faster on the Mac. Its LiveCodeBench run took 2 hours instead of 15. On the R9700, most of its experts sit in system RAM behind a PCIe 3.0 x4 link. On the Mac, all of them are in GPU memory.
 - **The Mac runs a class of models the R9700 can't hold.** GLM-5.3-Flash (93 GB), MiMo-V2.6-Flash (101 GB), Qwen3.8-Flash-Next at 4 bits (159 GB) and DeepSeek at Q4 (153 GB) all run fully resident.
 - **The same model scores differently on different engines.** Qwen3.8-Flash-Next scored 83.3% twice on Strata (R9700) and 63–70% on sushi (Mac). On the Mac's llama.cpp it scored 76.7% at 64k, and on oMLX 73.3%, both within noise of Strata. The gap was sushi, not the Mac: sushi's answers are a quarter as long. oMLX matched llama.cpp's quality at twice its speed. Across flint, qwen3.8-27b and Flash-Next, oMLX is now the Mac's default engine ([ANALYSIS-mac.md](ANALYSIS-mac.md#should-we-lean-on-omlx)).
+- **Tool calling holds up on the Mac's engines.** On `terminal-x3`, DeepSeek V4 Flash at Q4 on DwarfStar scored 100% (R9700, 2 bits on llama.cpp: 96.3%) and flint on oMLX 96.3% (R9700: 94.4%), with no malformed tool calls on either ([ANALYSIS-mac.md](ANALYSIS-mac.md#tool-calling-the-terminal-suite)).
 
 ---
 
@@ -115,7 +116,6 @@ These pair each machine's best engine for a model. Engine, quant and hardware al
 
 | | why | to fix |
 |---|---|---|
-| Agentic terminal tasks | no Docker on the Mac | install Docker, run `terminal-x3` |
 | Power and energy per task | aibench has no macOS reader | add a `powermetrics` sampler (needs sudo) |
 | Most of the R9700's models | not copied to the Mac yet | copy ThinkingCap, gemma-4-26b, nemotron-* from the NAS and run `mac` |
 | llama-bench in the generated tables | the R9700's `models.csv` predates the new columns | rebuild the dashboard on the R9700 box |
