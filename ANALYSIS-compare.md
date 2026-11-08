@@ -1,8 +1,8 @@
 # R9700 vs Mac Studio
 
-How the same models do on the two machines: the Radeon AI PRO R9700 box (32 GB VRAM, llama.cpp b11850 on Vulkan, plus Strata) and the Mac Studio (M5 Ultra, 256 GB unified memory, llama.cpp b12098 on Metal, plus DwarfStar, sushi and oMLX). The tables are in [RESULTS-compare.md](RESULTS-compare.md). Each machine's own analysis is in [ANALYSIS.md](ANALYSIS.md) (R9700) and [ANALYSIS-mac.md](ANALYSIS-mac.md) (Mac). Last updated 2026-11-07 15:30.
+How the same models do on the two machines: the Radeon AI PRO R9700 box (32 GB VRAM, llama.cpp b11850 on Vulkan, plus Strata) and the Mac Studio (M5 Ultra, 256 GB unified memory, llama.cpp b12098 on Metal, plus DwarfStar, sushi and oMLX). The tables are in [RESULTS-compare.md](RESULTS-compare.md). Each machine's own analysis is in [ANALYSIS.md](ANALYSIS.md) (R9700) and [ANALYSIS-mac.md](ANALYSIS-mac.md) (Mac). Last updated 2026-11-08 07:00.
 
-> The Mac's terminal-suite and 6-bit runs are in; Ripple-65B Preview (Mac only) is running now. The Mac's 128k results are in [ANALYSIS-mac.md](ANALYSIS-mac.md#128k-for-the-models-still-cut-off-at-64k); the R9700 never ran 128k.
+> The Mac's terminal-suite, 6-bit and Ripple-65B runs are in. The Mac's 128k results are in [ANALYSIS-mac.md](ANALYSIS-mac.md#128k-for-the-models-still-cut-off-at-64k); the R9700 never ran 128k.
 
 **In short:**
 
@@ -126,4 +126,4 @@ These pair each machine's best engine for a model. Engine, quant and hardware al
 - **Models up to ~30 GB:** either machine gives the same answers. The Mac is 1.1–1.3× faster in serving at 8k and about 2× faster on long reasoning runs. The R9700 is good enough for these; the Mac is better.
 - **Anything bigger** (DeepSeek, GLM-5.3-Flash, MiMo-V2.6-Flash, Qwen3.8-Flash-Next above 3 bits): **the Mac.** On the R9700 these models run with experts in system RAM, or not at all.
 - **The R9700 no longer has the best solver.** ds4-q4's 93.3% at 64k beats Strata's 83.3%, though Strata ran at 32k and never at 64k (it had nothing cut off, so it likely wouldn't gain). Strata keeps a real edge over sushi's build of the same model (83.3% against 63–70%), but not over the Mac as such: the same model scored 76.7% at 64k on the Mac's llama.cpp and 73.3% on oMLX, within noise of Strata. On oMLX it's also 1.4–2.3× faster than Strata per request.
-- **Models only the Mac can run so far:** Inkling-Small (153 GB at 4 bits) scored 70.0% on LiveCodeBench at 32k and 64k on oMLX. On the R9700 it's still blocked on llama.cpp support.
+- **Models only the Mac can run so far:** Inkling-Small (153 GB at 4 bits) scored 70.0% on LiveCodeBench at 32k and 64k on oMLX. On the R9700 it's still blocked on llama.cpp support. Ripple-65B Preview (40 GB at Q4) scored 100% on terminal-x3 and 76.7% at 64k on the Mac, at about 22 tok/s; it would fit the R9700's 32 GB only at 3 bits or below.

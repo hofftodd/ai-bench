@@ -1,8 +1,8 @@
 # Analysis of the Mac Studio runs
 
-The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3–6, 2026: three of the R9700's models on llama.cpp (Metal), DeepSeek V4 Flash on [DwarfStar](https://github.com/antirez/ds4) (`ds4`), three large MoE models on [sushi](https://github.com/beamivalice/sushi) (MLX), then Qwen3.8-Flash-Next on llama.cpp and on [oMLX](https://github.com/jundot/omlx) (MLX), and Inkling-Small on oMLX. The numbers are in [RESULTS-mac.md](RESULTS-mac.md); [ANALYSIS-compare.md](ANALYSIS-compare.md) sets them against the R9700. Last updated 2026-11-07 15:30.
+The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3–6, 2026: three of the R9700's models on llama.cpp (Metal), DeepSeek V4 Flash on [DwarfStar](https://github.com/antirez/ds4) (`ds4`), three large MoE models on [sushi](https://github.com/beamivalice/sushi) (MLX), then Qwen3.8-Flash-Next on llama.cpp and on [oMLX](https://github.com/jundot/omlx) (MLX), and Inkling-Small on oMLX. The numbers are in [RESULTS-mac.md](RESULTS-mac.md); [ANALYSIS-compare.md](ANALYSIS-compare.md) sets them against the R9700. Last updated 2026-11-08 07:00.
 
-> **Queue 11 is complete; Ripple-65B Preview is running now** (llama.cpp b12192, results tomorrow). Section 1 covers LiveCodeBench at 64k and 128k, plus later runs: Qwen3.8-Flash-Next on llama.cpp and oMLX, Inkling-Small on oMLX, the [oMLX verdict](#should-we-lean-on-omlx) with its 6-bit check, and the [terminal suite](#tool-calling-the-terminal-suite). Sections 2–3 are from the first (32k) sweep; section 4 has the picks. Next on this machine: tuning, sushi 1.5.0, DeepSeek V4.1 and Inkling 2 Small ([TODO.md](TODO.md#mac-studio-future)).
+> **The benchmark queue is complete.** Section 1 covers LiveCodeBench at 64k and 128k, plus later runs: Qwen3.8-Flash-Next on llama.cpp and oMLX, Inkling-Small on oMLX, [Ripple-65B Preview](#ripple-65b-preview), the [oMLX verdict](#should-we-lean-on-omlx) with its 6-bit check, and the [terminal suite](#tool-calling-the-terminal-suite). Sections 2–3 are from the first (32k) sweep; section 4 has the picks. Next on this machine: tuning, sushi 1.5.0, DeepSeek V4.1 and Inkling 2 Small ([TODO.md](TODO.md#mac-studio-future)).
 
 **In short:**
 
@@ -14,6 +14,7 @@ The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3
 - **Qwen3.8-Flash-Next's sushi gap is the engine, not the model.** On llama.cpp it scored **76.7% at 64k**, against 63–70% on sushi and 83.3% on Strata (R9700). Its answers average 29k tokens on llama.cpp and 7k on sushi: sushi makes the model think about a quarter as long. llama.cpp needs the room, though: at 32k it scored 53.3% with 14 of 30 answers cut off.
 - **oMLX is the engine to lean on here.** On flint, qwen3.8-27b and Qwen3.8-Flash-Next it matched llama.cpp's LiveCodeBench scores within noise (a possible ~3-point loss, likely the quant), finished 64k runs 1.3–2.1× sooner, and batched best: flint reached 351 tok/s in total with 8 requests in flight, against 220 on llama.cpp. A 6-bit rerun of qwen3.8-27b showed the earlier hint of a ~3-point loss was noise (37 of 60 solved, against 36 at 4 bits and 38 on llama.cpp). See [Should we lean on oMLX?](#should-we-lean-on-omlx).
 - **Inkling-Small (Thinking Machines, 276B / 12B active) runs well on oMLX: 70.0% at both 32k and 64k,** with concise 13–16k-token answers, nothing cut off at 64k, and 63 tok/s at 8k. A solid mid-pack model, below flint and the DeepSeek builds. It's the warm-up for Inkling 2 Small, whose weights aren't out yet.
+- **Ripple-65B Preview (Ricursive, 65B dense) has excellent tool use but is slow and mid-pack at coding:** 100% on `terminal-x3`, 76.7% on LiveCodeBench at 64k (the same as flint), at about 22 tok/s. flint on oMLX matches it at 7× the speed, so it isn't a pick here.
 - **Tool calling works on both engines the picks rely on.** On `terminal-x3` (18 shell tasks × 3), ds4-q4 on DwarfStar passed all 54 (100%, 35 minutes) and flint on oMLX 52 of 54 (96.3%, 7 minutes), with no malformed tool calls. On the R9700, DeepSeek V4 Flash at 2 bits scored 96.3% and flint on llama.cpp 94.4%.
 - **Everything that runs on both machines scores the same here.** qwen3.8-27b and DeepSeek V4 Flash got exactly their R9700 LiveCodeBench scores (56.7% and 60.0%), with nearly the same number of cut-off answers. The harness and the Metal build are sound.
 - **Qwen3.8-Flash-Next is the fastest model here,** on sushi or oMLX: 138 tok/s at 8k on sushi and 96–154 on oMLX with MTP, about 2 s to first token. sushi's runs are shortest (under 32 minutes for LiveCodeBench) because its answers are short (about 7k tokens), which is also why it scores lower.
@@ -184,6 +185,27 @@ Thinking Machines' first open model (276B total / 12B active, Apache-2.0, July 2
 - **oMLX works.** It loaded the model in 19 s, handled 4 concurrent LiveCodeBench requests, and separates reasoning from the answer like the other servers. One setting had to change: oMLX rejects prompts over 32,768 tokens unless a model's config states its context length, and Inkling's doesn't. It's raised to 135,168 in `~/.omlx/settings.json`.
 - **For Inkling 2 Small** (594B / 17B active), this is the path: oMLX, a 2–3-bit MLX build (about 175–210 GB), and `livecodebench-64k`.
 
+### Ripple-65B Preview
+
+Ricursive's first open model (released 2026-11-04): 65B dense, Apache-2.0, trained from scratch and post-trained for agentic coding; Ricursive claims 80.5 on Terminal-Bench 2.1. It ran as AtomicChat's imatrix AD-Q4_K_M GGUF (40.4 GB) on llama.cpp b12192 (Ripple support landed in b12167), with the same flags as the other llama.cpp runs. Ricursive publishes no sampling defaults; it ran at temperature 1.0, top_p 0.95.
+
+| | Ripple-65B | flint (oMLX) | ds4-q4 (DwarfStar) |
+|---|---|---|---|
+| LiveCodeBench 32k | 66.7 (8 cut off) | 66.7 (7) | **76.7** (7) |
+| LiveCodeBench 64k | 76.7 (2 cut off) | 76.7 (1) | **93.3** (0) |
+| 64k run | 368 min | **48** min | 174 min |
+| terminal-quick / terminal-x3 | **100 / 100** | 83.3 / 96.3 | — / **100** |
+| terminal-x3 wall | 31 min | **7.3** min | 35 min |
+| gen @8k, one request | 21 tok/s | **161** tok/s | — |
+| total gen, 3 requests in flight | ~23 tok/s | — | — |
+| first token @8k | 19.2 s | **1.6** s | — |
+| size | 40 GB | 23 GB | 153 GB |
+
+- **Tool use lives up to the claim:** 54 of 54 on `terminal-x3`, no malformed calls, about 6 turns per episode. It ties ds4-q4 for the top score here, but the suite is saturated, so this says its tool calling is solid more than that it's the best agent.
+- **Coding is mid-pack.** 76.7% at 64k (13 of 15 medium, 10 of 15 hard) ties flint and sits with Qwen3.8-Flash-Next, well below ds4-q4. Answers are moderate (median 11.7k tokens at 64k), and only 2 hit the 64k cap.
+- **It's slow.** Every token reads all 40 GB of weights, so it generates about 22 tok/s, and parallel requests barely help (about 23 tok/s in total with 3 in flight, against flint's 351 with 8). Its runs took 4–7× as long as flint's for the same scores.
+- **Verdict: not a pick here.** flint on oMLX gives the same LiveCodeBench score, nearly the same terminal score, 7× the speed and far better batching from about half the memory. Worth rechecking with a harder terminal suite (where its tool use might separate it) or once there's an MTP head or a usable MLX build. The unofficial MLX 4-bit build needs `--trust-remote-code` with its uploader's `ricursive.py`, which wasn't tried.
+
 ## 2. Did we get the results we expected? (32k sweep)
 
 ### Yes, for everything we could check
@@ -251,7 +273,7 @@ qwen3.8-27b runs with an MTP drafter. Its server speed is 94 tok/s after a 512-t
 In order of value:
 
 1. **A second 64k pass for ds4-q4 and flint,** the two results the recommendations below lean on most.
-2. ~~Docker and `terminal-x3` for flint on oMLX and ds4-q4 on DwarfStar~~ *Done: 96.3% and 100%, no bad tool calls.* Ripple-65B Preview is running now.
+2. ~~Docker and `terminal-x3` for flint on oMLX and ds4-q4 on DwarfStar~~ *Done: 96.3% and 100%, no bad tool calls.* Ripple-65B Preview: done, see [above](#ripple-65b-preview).
 3. **Strata's answer lengths and sampling** from the R9700's run.json, to explain how Strata scores 83.3% at 32k with nothing cut off.
 4. **`llama-bench -d 8192`** for qwen3.8-27b, to explain the drafter's long-context drop (a couple of minutes).
 5. **ThinkingCap and Strata's model on llama.cpp.** ThinkingCap is the R9700's best model that fits in VRAM, so it's the obvious next comparison (on llama.cpp and oMLX).
@@ -267,6 +289,7 @@ In order of value:
 | Strong and fast, executors | **flint on oMLX** | 77% at 64k in 48 min (llama.cpp: 73–80%); 161 tok/s at 8k, 351 tok/s in total with 8 requests in flight, from 23 GB. 96.3% on terminal-x3 with clean tool calls. Fallback: flint on llama.cpp. |
 | Fastest, interactive | **Qwen3.8-Flash-Next on oMLX** | 102 tok/s at 8k (up to 154 with MTP for single requests), 2.0 s TTFT, and llama.cpp's quality (73–77% at 64k), where sushi's build scores 63–70%. MTP off when several agents share it. |
 | Worth watching | Inkling-Small (oMLX) | 70% at 32k and 64k with short answers; below flint. Inkling 2 Small may change this. |
+| Worth watching | Ripple-65B Preview (llama.cpp) | 100% on terminal-x3 and 76.7% at 64k, but ~22 tok/s and no batching gain; flint does the same job 7× faster. |
 | Not recommended | GLM-5.3-Flash, MiMo-V2.6-Flash | 63–70% even at 128k, with 48–55k-token answers |
 
-This table may change with Ripple-65B (running now), DeepSeek V4.1 and Inkling 2 Small.
+This table may change with DeepSeek V4.1 and Inkling 2 Small.
