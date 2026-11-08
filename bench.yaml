@@ -53,7 +53,7 @@ backends:
     port: 5897
     args: [--ctx-size, 131072, -b, 8192, -ub, 8192, -fa, "on", -ctk, q8_0, -ctv, q4_0, --jinja,
            --parallel, 1, --spec-type, draft-mtp, --spec-draft-n-max, 2, -ubd, 256, -ctkd, q8_0, -ctvd, q8_0,
-           -md, ~/models-pending/qwen3.8-flash-next/avalon-iq3ks/MTP/mtp-Qwen3.8-Flash-Next-shared-IQ3K-IQ4NL-FR65k.gguf]
+           -md, ~/models-archived/qwen3.8-flash-next/avalon-iq3ks/MTP/mtp-Qwen3.8-Flash-Next-shared-IQ3K-IQ4NL-FR65k.gguf]
     pre: ["curl -s http://localhost:8080/unload"]
     env: {HIP_VISIBLE_DEVICES: "0"}   # the R9700 only: hide the 780M (Avalon's multi-GPU is untested)
     startup_timeout: 1800     # first load reads ~90-100 GiB from disk
@@ -103,7 +103,7 @@ models:
   avalon-iq3ks: &avalon
     backend: avalon
     id: qwen3.8-flash-next-avalon-iq3ks
-    gguf: ~/models-pending/qwen3.8-flash-next/avalon-iq3ks/Qwen3.8-Flash-Next-Avalon-IQ3KS-00001-of-00033.gguf
+    gguf: ~/models-archived/qwen3.8-flash-next/avalon-iq3ks/Qwen3.8-Flash-Next-Avalon-IQ3KS-00001-of-00033.gguf
     max_tokens: 32768
     params: {temperature: 1.0, top_p: 0.95, top_k: 20}   # Qwen's thinking-mode defaults for this model
   # avalon-udq4kxl (Unsloth's UD-Q4_K_XL repacked with Avalon's scripts/pack-experts.py) ran the quick profile on
