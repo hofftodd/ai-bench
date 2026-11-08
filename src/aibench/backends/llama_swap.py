@@ -47,3 +47,34 @@ class LlamaSwapBackend(OpenAIBackend):
             if m.get("model") == model.id and m.get("cmd"):
                 info["cmd"] = m["cmd"]
         return info
+
+
+@backend("ai-swap")
+class AiSwapBackend(LlamaSwapBackend):
+    """ai-swap (https://github.com/hofftodd/ai-swap): llama-swap's successor here, a proxy that
+    swaps models on demand across several machines. It answers llama-swap's /running, /unload
+    and /upstream for this machine's models, so everything above works unchanged. A model it
+    keeps loaded by default stays unloaded after `exclusive` unloads it, until something uses
+    it again, so the model under test keeps the GPU."""
+
+    async def prepare(self, model: ModelSpec) -> dict[str, Any]:
+        # ai-swap forwards a model this machine doesn't serve to a peer. A benchmark has to run
+        # here, or its results would be labelled with this machine's hardware.
+        try:
+            r = await self.client.get(f"{self.root_url}/api/node", timeout=10)
+            r.raise_for_status()
+            node = r.json()
+        except (httpx.HTTPError, ValueError) as e:
+            raise RuntimeError(f"ai-swap at {self.root_url}: {e}") from e
+        local = set()
+        for m in node.get("models") or []:
+            if m.get("runnable"):
+                local |= {m["name"], *(m.get("aliases") or [])}
+        if model.id not in local:
+            raise RuntimeError(
+                f"{model.id} isn't served by this machine's ai-swap ({node.get('name')}); "
+                "it would run on another machine. Benchmark it there."
+            )
+        info = await super().prepare(model)
+        info["ai_swap_node"] = node.get("name")
+        return info

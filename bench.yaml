@@ -11,10 +11,13 @@ default_backend: swap         # unknown -m names are tried as model ids on this 
 plugins: [plugins]            # every *.py in ./plugins is imported (custom backends/suites)
 
 backends:
-  # Your always-on llama-swap (llama.cpp Vulkan). exclusive: unload everything else first,
-  # including the resident qwen3.8-27b, so each model gets the whole R9700.
+  # The always-on ai-swap on :8080 (llama.cpp Vulkan; replaced llama-swap 2026-11-08). It
+  # answers llama-swap's /running, /unload and /upstream, so `pre:` steps below still use
+  # /unload. exclusive: unload everything else first, including the resident qwen3.8-27b, so each
+  # model gets the whole R9700. Note ai-swap also serves the Mac's agents: avoid R9700-model
+  # traffic from them during a run.
   swap:
-    type: llama-swap
+    type: ai-swap
     base_url: http://localhost:8080/v1
     exclusive: true
 
