@@ -10,12 +10,17 @@ monitor_gpus: auto            # GPUs with >= 4 GiB VRAM (skips the 780M iGPU)
 default_backend: swap         # unknown -m names are tried as model ids on this backend
 plugins: [plugins]            # every *.py in ./plugins is imported (custom backends/suites)
 
+# Reserve this machine's ai-swap for each run (aibench/reserve.py): only the run's requests are
+# served, so agents on the Mac can't load models here mid-benchmark. Released at the end.
+reserve:
+  url: http://localhost:8080
+  unload: true
+
 backends:
   # The always-on ai-swap on :8080 (llama.cpp Vulkan; replaced llama-swap 2026-11-08). It
   # answers llama-swap's /running, /unload and /upstream, so `pre:` steps below still use
-  # /unload. exclusive: unload everything else first, including the resident qwen3.8-27b, so each
-  # model gets the whole R9700. Note ai-swap also serves the Mac's agents: avoid R9700-model
-  # traffic from them during a run.
+  # /unload (with the run's reservation token). exclusive: unload everything else first,
+  # including the resident qwen3.8-27b, so each model gets the whole R9700.
   swap:
     type: ai-swap
     base_url: http://localhost:8080/v1
@@ -30,7 +35,7 @@ backends:
     stop: strata launch --stop
     detached: true            # `strata launch --no-tui` returns once the server is up
     port: 8090
-    pre: ["curl -s http://localhost:8080/unload"]
+    pre: ['curl -s -H "X-AI-Swap-Lock: $AI_SWAP_LOCK" http://localhost:8080/unload']
     startup_timeout: 1800     # first start downloads the engine + model
 
   # The same llama.cpp release (b11850) built with HIP/ROCm, started by aibench, to compare
@@ -42,7 +47,7 @@ backends:
     port: 5898
     args: [--n-gpu-layers, 99, --threads, 16, --flash-attn, auto, --jinja,
            --cache-type-k, q8_0, --cache-type-v, q8_0, --device, ROCm0]
-    pre: ["curl -s http://localhost:8080/unload"]
+    pre: ['curl -s -H "X-AI-Swap-Lock: $AI_SWAP_LOCK" http://localhost:8080/unload']
 
   # Avalon (llama.cpp fork for Qwen3.8-Flash-Next, https://github.com/freriadoc/Avalon), built for gfx1201
   # in ~/src/Avalon (main includes 2d16e18cc, the fix for the R9700's first-request hang). Experts stay
@@ -57,7 +62,7 @@ backends:
     args: [--ctx-size, 131072, -b, 8192, -ub, 8192, -fa, "on", -ctk, q8_0, -ctv, q4_0, --jinja,
            --parallel, 1, --spec-type, draft-mtp, --spec-draft-n-max, 2, -ubd, 256, -ctkd, q8_0, -ctvd, q8_0,
            -md, ~/models-archived/qwen3.8-flash-next/avalon-iq3ks/MTP/mtp-Qwen3.8-Flash-Next-shared-IQ3K-IQ4NL-FR65k.gguf]
-    pre: ["curl -s http://localhost:8080/unload"]
+    pre: ['curl -s -H "X-AI-Swap-Lock: $AI_SWAP_LOCK" http://localhost:8080/unload']
     env: {HIP_VISIBLE_DEVICES: "0"}   # the R9700 only: hide the 780M (Avalon's multi-GPU is untested)
     startup_timeout: 1800     # first load reads ~90-100 GiB from disk
 

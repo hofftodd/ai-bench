@@ -51,6 +51,8 @@ class Config:
     outputs: dict[str, Any] = field(default_factory=dict)
     # Cross-machine comparison (dashboard.write_comparison): baseline {label, csv}, pairs, out.
     compare: dict[str, Any] = field(default_factory=dict)
+    # Reserve this machine's ai-swap during runs (aibench.reserve): {url, unload, ttl} or a URL.
+    reserve: dict[str, Any] | str | None = None
 
     @property
     def base_dir(self) -> Path:
@@ -130,4 +132,5 @@ def load_config(path: str | Path | None) -> Config:
         monitor_gpus=raw.get("monitor_gpus", "auto"),
         outputs=raw.get("outputs") or {},
         compare=raw.get("compare") or {},
+        reserve=raw.get("reserve"),
     )

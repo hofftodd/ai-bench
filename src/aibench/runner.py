@@ -81,6 +81,12 @@ async def run_benchmark(cfg: Config, model_keys: list[str], suite_keys: list[str
         console.print(f"  gpu {g['id']}: {g['name']} ({g['vram_gib']} GiB)")
 
     backends: dict[str, Backend] = {}
+    reservation = None
+    if cfg.reserve:
+        from .reserve import Reservation
+
+        reservation = Reservation(cfg.reserve, f"run {run_id}: {', '.join(model_keys)}", console)
+        await reservation.__aenter__()
     try:
         for mkey in model_keys:
             model = cfg.model(mkey)
@@ -172,6 +178,8 @@ async def run_benchmark(cfg: Config, model_keys: list[str], suite_keys: list[str
     finally:
         for be in backends.values():
             await be.close()
+        if reservation is not None:
+            await reservation.__aexit__(None, None, None)
         record.pop("current", None)
         record["finished"] = datetime.now().isoformat()
         save()

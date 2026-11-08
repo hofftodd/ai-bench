@@ -17,6 +17,13 @@ from .base import Backend, GenRequest, GenResult
 
 
 @backend("openai")
+async def _add_reservation(request: httpx.Request) -> None:
+    from ..reserve import token_headers
+
+    for k, v in token_headers().items():
+        request.headers[k] = v
+
+
 class OpenAIBackend(Backend):
     def __init__(self, name: str, base_url: str = "http://localhost:8080/v1", api_key: str | None = None,
                  timeout: float = 1800, extra_body: dict | None = None, send_hints: bool = True, **options):
@@ -26,7 +33,9 @@ class OpenAIBackend(Backend):
         # ignore_eos / cache_prompt are understood by llama.cpp and vLLM; turn off for strict servers.
         self.send_hints = send_hints
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-        self.client = httpx.AsyncClient(headers=headers, timeout=httpx.Timeout(timeout, connect=10))
+        # During a reserved run, ai-swap serves only requests carrying the run's token.
+        self.client = httpx.AsyncClient(headers=headers, timeout=httpx.Timeout(timeout, connect=10),
+                                        event_hooks={"request": [_add_reservation]})
 
     @property
     def root_url(self) -> str:

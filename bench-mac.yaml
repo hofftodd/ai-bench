@@ -45,6 +45,13 @@ compare:
     The R9700's llama-bench numbers aren't in its models.csv yet (they arrive when its dashboard is next rebuilt);
     [ANALYSIS-compare.md](ANALYSIS-compare.md) quotes them from RESULTS.md and interprets the tables.
 
+# Reserve this Mac's ai-swap for each run (aibench/reserve.py) and unload its models, so the
+# engines started below get the memory and agents can't add load mid-run. Released at the end,
+# which brings ai-swap's resident models back.
+reserve:
+  url: http://localhost:8080
+  unload: true
+
 backends:
   # Started and stopped by aibench, one model at a time. Flags mirror llama-swap's `server` macro on
   # the R9700 (q8_0 KV cache, flash attention, jinja templates, 4 slots sharing one KV pool).
