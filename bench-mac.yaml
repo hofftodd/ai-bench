@@ -118,6 +118,19 @@ models:
     params: {temperature: 1.0, top_p: 0.95}
     args: [--ctx-size, 540672]        # 4 slots x 135,168 (see qwen3.8-27b)
 
+  # Nemotron 3.5 Super VL 120B-A12B (NVIDIA, Oct 2026): hybrid Mamba MoE (nemotron_h_moe), 12B active.
+  # ggml-org Q4_0 (72 GB) with its MTP drafter; no mmproj, so text only. Needs b12192. The model card
+  # gives no sampling defaults; these are ours.
+  nemotron-3.5-super-vl:
+    backend: metal-b12192
+    id: nemotron-3.5-super-vl
+    gguf: ~/models/nemotron-3.5-super-vl/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-Q4_0.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95}
+    args: [--ctx-size, 540672, --model-draft,
+           ~/models/nemotron-3.5-super-vl/mtp-NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-Q4_0.gguf,
+           --spec-type, draft-mtp]
+
   flint:
     backend: metal
     id: flint
