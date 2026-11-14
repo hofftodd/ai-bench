@@ -163,6 +163,15 @@ models:
     <<: *thinkingcap_qwen38_27b
     id: thinkingcap-qwen3.8-27b-udq4kxl
     gguf: ~/models/thinkingcap-qwen3.8-27b-udq4kxl/ThinkingCap-Qwen3.8-27B-UD-Q4_K_XL-local.gguf
+  # Nanbeige4.3-33B (Nanbeige / BOSS Zhipin, Oct 2026): 33B dense llama-arch, Apache-2.0, tuned for
+  # agentic coding. bartowski Q4_K_M (20.8 GB). Card's reasoning sampling (agentic tasks: temperature 1.0).
+  # Full attention (52 layers, 8 KV heads), so ai-swap fits far less context than the hybrid Qwens.
+  nanbeige4.3-33b:
+    backend: swap
+    id: nanbeige4.3-33b
+    gguf: ~/models/nanbeige4.3-33b/Nanbeige_Nanbeige4.3-33B-Q4_K_M.gguf
+    max_tokens: 32768
+    params: {temperature: 0.6, top_p: 0.95}
   qwen3.6-35b-a3b: &qwen36_35b_a3b
     backend: swap
     id: qwen3.6-35b-a3b
