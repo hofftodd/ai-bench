@@ -22,6 +22,7 @@ import asyncio
 import contextlib
 import os
 import socket
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -35,6 +36,29 @@ def token_headers() -> dict[str, str]:
     return {HEADER: _token} if _token else {}
 
 
+def api_key() -> str:
+    """ai-swap's API key, when the cluster requires one: $AI_SWAP_API_KEY, else the env file
+    ai-tools' keys/render writes (~/.config/ai-swap/env). Found in the file, it is also put in
+    this process's environment, so `pre:` shell steps can send it as $AI_SWAP_API_KEY."""
+    if k := os.environ.get("AI_SWAP_API_KEY", "").strip():
+        return k
+    f = Path.home() / ".config/ai-swap/env"
+    if f.is_file():
+        for line in f.read_text().splitlines():
+            if line.startswith("AI_SWAP_API_KEY="):
+                k = line.split("=", 1)[1].strip().strip("'\"")
+                if k:
+                    os.environ["AI_SWAP_API_KEY"] = k
+                return k
+    return ""
+
+
+def auth_headers() -> dict[str, str]:
+    """The ai-swap key as a Bearer header, or nothing when there is no key."""
+    k = api_key()
+    return {"Authorization": f"Bearer {k}"} if k else {}
+
+
 class Reservation:
     def __init__(self, spec: dict[str, Any] | str, reason: str, console: Any = None):
         spec = {"url": spec} if isinstance(spec, str) else dict(spec)
@@ -43,7 +67,7 @@ class Reservation:
         self.ttl = int(spec.get("ttl", 300))
         self.reason = reason
         self.console = console
-        self.client = httpx.AsyncClient(timeout=httpx.Timeout(300, connect=5))
+        self.client = httpx.AsyncClient(timeout=httpx.Timeout(300, connect=5), headers=auth_headers())
         self._renew: asyncio.Task[None] | None = None
 
     def _say(self, msg: str) -> None:
