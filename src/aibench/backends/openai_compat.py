@@ -18,10 +18,13 @@ from .base import Backend, GenRequest, GenResult
 
 @backend("openai")
 async def _add_reservation(request: httpx.Request) -> None:
-    from ..reserve import token_headers
+    from ..reserve import auth_headers, token_headers
 
     for k, v in token_headers().items():
         request.headers[k] = v
+    # ai-swap's key, unless the backend was given its own api_key for another server.
+    if "authorization" not in request.headers:
+        request.headers.update(auth_headers())
 
 
 class OpenAIBackend(Backend):
