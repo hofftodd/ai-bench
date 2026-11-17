@@ -150,6 +150,39 @@ models:
     params: {temperature: 1.0, top_p: 0.95, top_k: 20}   # Qwen's thinking-mode defaults, as on sushi
     args: [--ctx-size, 540672]        # 4 slots x 135,168 (see qwen3.8-27b)
 
+  # ThinkingCap-Qwen3.8-Flash-Next (BottleCap AI, Nov 2026): a finetune of the model above that thinks
+  # less (model card: -40.9% thinking tokens on LiveCodeBench v6, 91.9 -> 90.9%). bottlecapai's own
+  # Q4_K_M (113 GB, 8 shards); they publish no MLX build. Same engine, flags and sampling as
+  # qwen3.8-flash-next (the card's are Qwen's: temp 1.0, top_p 0.95, top_k 20, min_p 0, effort xhigh,
+  # the template default), so the two compare directly; the base ran Unsloth's UD-Q4_K_XL, though.
+  # No MTP drafter, as above. The card checked llama.cpp at 5f5acfe, which b12098 contains.
+  thinkingcap-qwen3.8-flash-next:
+    backend: metal
+    id: thinkingcap-qwen3.8-flash-next
+    gguf: ~/models/thinkingcap-qwen3.8-flash-next/Q4_K_M/ThinkingCap-Qwen3.8-Flash-Next-Q4_K_M-00001-of-00008.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20, min_p: 0.0}
+    args: [--ctx-size, 540672]        # 4 slots x 135,168 (see qwen3.8-27b)
+
+  # ThinkingCap with Strata's thinking budget. Strata (serve/server.py, 0.1.48) keeps a quarter of max_tokens for
+  # the answer: past max_tokens - max_tokens/4 of thinking it writes a wrap-up sentence and </think> and lets the
+  # model answer. On the R9700's LCB run that fired on 12 of 30 problems and 8 of them were still solved; the Mac
+  # engines, with no budget, had 14 of 30 cut off at 32k. llama.cpp's budget is per server, so one entry per
+  # budget: `-budget` for livecodebench (32k -> 24,576), `-budget64k` for livecodebench-64k (64k -> 49,152).
+  # The message is Strata's REASONING_WRAP_UP (llama.cpp adds the end-of-thinking tag after it).
+  thinkingcap-qwen3.8-flash-next-budget: &tc-budget
+    backend: metal
+    id: thinkingcap-qwen3.8-flash-next
+    gguf: ~/models/thinkingcap-qwen3.8-flash-next/Q4_K_M/ThinkingCap-Qwen3.8-Flash-Next-Q4_K_M-00001-of-00008.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20, min_p: 0.0}
+    args: [--ctx-size, 540672, --reasoning-budget, 24576,
+           --reasoning-budget-message, "\n\nI have thought about this long enough; time to give my answer.\n"]
+  thinkingcap-qwen3.8-flash-next-budget64k:
+    <<: *tc-budget
+    args: [--ctx-size, 540672, --reasoning-budget, 49152,
+           --reasoning-budget-message, "\n\nI have thought about this long enough; time to give my answer.\n"]
+
   # On the R9700, experts of 34 of 43 layers ran from system RAM (--n-cpu-moe 34). Here the whole
   # model sits in unified memory, so this is the most interesting speed comparison.
   deepseek-v4-flash:
@@ -219,6 +252,25 @@ models:
     gguf: ~/models/omlx
     max_tokens: 32768
     params: {temperature: 1.0, top_p: 0.95, top_k: 20}
+
+  # The same with Strata's thinking budget (see thinkingcap-qwen3.8-flash-next-budget): a quarter of max_tokens
+  # kept for the answer. oMLX takes it per request (`thinking_budget`) and only forces </think>, with no wrap-up
+  # sentence. `-budget` is for livecodebench (24,576 of 32k), `-budget64k` for livecodebench-64k (49,152 of 64k).
+  # `-budget-greedy` adds Strata's other difference: aibench sent it no sampling, so it decoded greedily.
+  # Strata also stops a reply that repeats one token 256 times; nothing here does, so a greedy loop runs to
+  # the budget. MTP id, as in the 50.0 / 73.3 runs these compare with.
+  omlx-qwen3.8-flash-next-budget: &omlx-fn-budget
+    backend: omlx
+    id: qwen3.8-flash-next-oq4e-mtp
+    gguf: ~/models/omlx
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20, extra_body: {thinking_budget: 24576}}
+  omlx-qwen3.8-flash-next-budget64k:
+    <<: *omlx-fn-budget
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20, extra_body: {thinking_budget: 49152}}
+  omlx-qwen3.8-flash-next-budget-greedy:
+    <<: *omlx-fn-budget
+    params: {temperature: 0.0, extra_body: {thinking_budget: 24576}}
 
   # The two llama.cpp workhorses as oMLX oQ4e quants, to see whether oMLX's lead on Flash-Next holds for a dense
   # model and a small-active MoE. Same sampling as their llama.cpp entries. qwen3.8-27b runs with MTP (its embedded
