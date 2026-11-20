@@ -28,6 +28,29 @@ outputs:
     (both servers reject it). [ANALYSIS-mac.md](ANALYSIS-mac.md) interprets these numbers;
     [RESULTS-compare.md](RESULTS-compare.md) puts them next to the R9700's.
 
+  # The current recommendation per role (ANALYSIS-mac.md section 4). The dashboard and RESULTS-mac.md lead with these.
+  picks:
+    - model: omlx-qwen3.8-flash-next-budget-greedy
+      role: Hard problems and planning
+      note: >-
+        Qwen3.8-Flash-Next on oMLX with greedy decoding and a 24,576-token thinking budget, as ai-swap serves it
+        (qwen3.8-flash-next). 90% at 32k, 53 of 60 on LCB-60, ties ds4-q4 in a quarter to half the time. 127 tok/s at 8k
+        with MTP as benchmarked; ai-swap serves it without MTP (~102 tok/s, better with several agents).
+    - model: omlx-flint
+      role: Executors, fast all-round
+      note: >-
+        flint on oMLX: 77% at 64k in 48 min, 96.3% terminal-x3, 161 tok/s at 8k and 351 tok/s in total with
+        8 requests in flight, from 23 GB.
+    - model: ds4-q4
+      role: Second opinion, escalation
+      note: >-
+        DeepSeek V4 Flash Q4 on DwarfStar: 93.3% at 64k (86.7% on LCB-60), 100% terminal-x3. A different model
+        that fails on different problems, but ~4x slower than tuned Flash-Next.
+    - model: qwen3.8-27b
+      role: Hard problems, small footprint
+      note: >-
+        86.7% at 128k from 17.5 GB, but 39k-token answers: give it a 128k budget. oMLX doubles its speed at 8k.
+
 # The R9700's published results (committed models.csv) next to this box's, written to RESULTS-compare.md.
 compare:
   label: Mac
@@ -79,6 +102,21 @@ backends:
            --cache-type-k, q8_0, --cache-type-v, q8_0]
     startup_timeout: 1800
 
+  # llama.cpp at ggml-org/llama.cpp#32187 (a45f662, unmerged: "model : add Inkling 2 (stacked on
+  # Inkling 1)", by unsloth), built as a worktree in ~/src/llama.cpp-inkling2-32187 for Inkling 2 Small;
+  # no release has the inkling2 architecture yet. It is the PR unsloth's GGUFs were made with: #32217
+  # (~/src/llama.cpp-inkling2) reads different metadata keys and can't load them. Its banded flash
+  # attention has no Metal kernel, so that op runs on the CPU: speed here understates the hardware.
+  # Same flags as `metal` except the KV cache, which stays F16: the model "does not support a quantized
+  # V cache" (only 8 of its 48 layers are global, so F16 costs ~6 GB at 196k). Results on it are
+  # provisional until the PR is merged.
+  metal-inkling2:
+    type: llama-server
+    binary: ~/src/llama.cpp-inkling2-32187/build/bin/llama-server
+    port: 5898
+    args: [--n-gpu-layers, 99, --flash-attn, auto, --jinja, --parallel, 4]
+    startup_timeout: 1800
+
   # sushi (MLX, https://github.com/beamivalice/sushi, Homebrew beamivalice/tap). Serves one pack; the
   # model's `gguf:` holds the pack directory. Qwen/MiMo run their native MTP head by default.
   sushi:
@@ -103,6 +141,18 @@ backends:
     port: 8010
     startup_timeout: 1800
 
+  # Splash 1.7.0 (https://github.com/incoai/splash, Homebrew incoai/tap/splash): Metal engine with DFlash2
+  # speculative decoding. Serves the local GGUF in {gguf} with its family's draft from the Hugging Face cache;
+  # {model_id} must be OWNER/REPO (Splash's API name). Text only, no idle unload, no chat page. Up to 32
+  # requests at once, batched. Its SSD cache is capped (auto, at most 32 GiB) and dropped at exit.
+  splash:
+    type: process
+    start: splash serve --model {model_id} --model-dir {gguf} --host {host} --port {port}
+           --language-only --idle-release off --no-webui --max-context 128K
+    port: 8020
+    health_url: http://127.0.0.1:8020/ready
+    startup_timeout: 3600     # the first start prepares (links and checks) the GGUF
+
 models:
   qwen3.8-27b:
     backend: metal
@@ -123,6 +173,19 @@ models:
     max_tokens: 32768
     params: {temperature: 1.0, top_p: 0.95}
     args: [--ctx-size, 540672]        # 4 slots x 135,168 (see qwen3.8-27b)
+
+  # Inkling 2 Small (Thinking Machines, Nov 2026): 594B total / 17B active MoE (384 experts, top 8),
+  # hybrid local/global attention, Apache-2.0. unsloth's UD-Q2_K_XL (205 GB, 6 shards); the 4-bit
+  # quants (354+ GB) don't fit. Text only (no mmproj). Needs the metal-inkling2 build (unmerged PR).
+  # Sampling and reasoning effort are the model card's: temp 1.0, top_p 1.0, no top_k/min_p, "high".
+  # 4 slots x 49,152: room for a 32k answer plus its prompt, with ~35 GB left over the weights.
+  inkling-2-small:
+    backend: metal-inkling2
+    id: inkling-2-small
+    gguf: ~/models/inkling-2-small/UD-Q2_K_XL/Inkling-2-Small-UD-Q2_K_XL-00001-of-00006.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 1.0, top_k: 0, min_p: 0.0}
+    args: [--ctx-size, 196608, --chat-template-kwargs, '{"reasoning_effort":"high"}']
 
   # Nemotron 3.5 Super VL 120B-A12B (NVIDIA, Oct 2026): hybrid Mamba MoE (nemotron_h_moe), 12B active.
   # ggml-org Q4_0 (72 GB) with its MTP drafter; no mmproj, so text only. Needs b12192. The model card
@@ -286,6 +349,18 @@ models:
     id: qwen3.8-flash-next-oq6e-mtp
     params: {temperature: 0.0, extra_body: {thinking_budget: 24576}}
 
+  # Laguna S 2.1 (poolside, Jul 2026): 118B-A8B MoE for agentic coding, OpenMDW license; claims 70.2% on
+  # Terminal-Bench 2.1. poolside's NVFP4 MLX build (72 GB) on oMLX (mlx_lm has `laguna`). Sampling and
+  # thinking are its generation_config.json's; thinking is sent explicitly in case oMLX ignores the default
+  # chat-template kwargs. The small XS 2.1 did badly on the R9700 (33.3% LCB, 77.8% terminal-x3).
+  omlx-laguna-s-2.1:
+    backend: omlx
+    id: laguna-s-2.1-nvfp4
+    gguf: ~/models/omlx
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 1.0, top_k: 20, min_p: 0.0,
+             extra_body: {chat_template_kwargs: {enable_thinking: true}}}
+
   # Flash-Next as agents get it: through the Mac's ai-swap (model qwen3.8-flash-next, oQ4e without MTP), with
   # greedy and the 24,576-token budget set as oMLX model settings (force_sampling, thinking_budget_tokens) rather
   # than per request. It sends an agent's usual sampling on purpose: force_sampling should override it.
@@ -321,7 +396,35 @@ models:
     max_tokens: 32768
     params: {temperature: 0.6, top_p: 0.95, top_k: 20}
 
-suites:                       # copied from bench.yaml so the settings match exactly
+  # Splash (DFlash2 speculative decoding) on the two models ai-swap serves, as Unsloth's UD-Q4_K_XL GGUFs (Splash
+  # has no MLX support for either). splash-flint uses flint's sampling, against flint (llama.cpp) and omlx-flint.
+  # splash-qwen3.8-flash-next uses the best oMLX setting (greedy, 24,576-token thinking budget; Splash's request
+  # field is thinking_token_budget), against omlx-qwen3.8-flash-next-budget-greedy. --ple-memory off keeps
+  # Flash-Next's whole PLE table in RAM instead of streaming it from the SSD.
+  splash-flint:
+    backend: splash
+    id: unsloth/flint-GGUF
+    gguf: ~/models/flint/flint-UD-Q4_K_XL.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20, keep_reasoning: true}
+  # splash-flint scored 63.3% on livecodebench (llama.cpp 80%, oMLX 76.7%). This checks whether Splash's default
+  # 8-bit activations cause the drop: its docs recommend bf16 for evaluations.
+  splash-flint-bf16:
+    backend: splash
+    id: unsloth/flint-GGUF
+    gguf: ~/models/flint/flint-UD-Q4_K_XL.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20, keep_reasoning: true}
+    args: [--activations, bf16]
+  splash-qwen3.8-flash-next:
+    backend: splash
+    id: unsloth/Qwen3.8-Flash-Next-GGUF
+    gguf: ~/models/qwen3.8-flash-next/UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf
+    max_tokens: 32768
+    params: {temperature: 0.0, extra_body: {thinking_token_budget: 24576}}
+    args: [--ple-memory, "off"]
+
+suites:                     # copied from bench.yaml so the settings match exactly
   speed-quick:
     type: throughput
     prompt_tokens: [512, 8192]

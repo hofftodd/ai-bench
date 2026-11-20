@@ -1,444 +1,661 @@
 <style>
 .rb { display: flex; flex-direction: column; gap: var(--cds-gap-lg); font-family: var(--font-anthropic-sans); font-variant-numeric: tabular-nums; }
-.rb h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
+.rb h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; line-height: 1.15; }
 .rb h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0; text-wrap: balance; }
-.rb-take { margin: var(--cds-gap-xs) 0 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-body); max-width: 72ch; }
-.rb .rb-take b { color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+.rb-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--cds-gap-md); }
+.rb-head-text { display: flex; flex-direction: column; gap: var(--cds-gap-xs); min-width: 0; flex: 1 1 28rem; }
+.rb-take { margin: 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-body); max-width: 72ch; line-height: 1.5; }
+.rb-take b { color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+.rb-meta { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
 
-.rb-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: var(--cds-gap-md); }
+.rb-seg { display: inline-flex; padding: 3px; gap: 2px; border: 1px solid var(--color-border-line); border-radius: 999px; background: var(--color-panel); }
+.rb-seg button { font: inherit; font-size: var(--cds-font-size-body); color: var(--color-fg-muted); background: none; border: 0; border-radius: 999px; padding: 0.3rem 0.9rem; cursor: pointer; }
+.rb-seg button[aria-pressed="true"] { background: var(--color-fg); color: var(--color-bg); }
+.rb-seg button:focus-visible { outline: 2px solid var(--dash-series-0); outline-offset: 2px; }
+
+.rb-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: var(--cds-gap-md); }
 .rb-tile, .rb-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); min-width: 0; }
 .rb-tile { display: flex; flex-direction: column; gap: var(--cds-gap-xs); }
 .rb-lbl { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
 .rb-big { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); line-height: 1.1; }
 .rb-unit { font-size: var(--cds-font-size-heading); color: var(--color-fg-muted); }
-.rb-sub { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.rb-sub { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); overflow-wrap: anywhere; }
+.rb-sub b { color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
 
 .rb-card { display: flex; flex-direction: column; gap: var(--cds-gap-md); }
-.rb-card-head { display: flex; flex-direction: column; gap: var(--cds-gap-xs); }
-.rb-note { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); max-width: 72ch; }
-.rb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: var(--cds-gap-md); }
-
-.rb-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 10.5rem), 1fr)); gap: var(--cds-gap-sm); min-height: 3.25rem; }
-.rb-step { display: flex; align-items: center; gap: var(--cds-gap-sm); padding: var(--cds-pad-sm); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); min-width: 0; }
-.rb-step-n { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); min-width: 1ch; }
-.rb-step-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: var(--cds-font-size-body); }
-.rb-pill { font-size: var(--cds-font-size-caption); padding: 0 var(--cds-pad-xs); border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
-.rb-pill.is-done { color: var(--color-ok); }
-.rb-pill.is-running { color: var(--color-warn); }
-.rb-pill.is-queued { color: var(--color-fg-muted); }
-.rb-step.is-running { border-color: var(--color-warn); }
+.rb-card-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--cds-gap-sm); }
+.rb-card-head > div { display: flex; flex-direction: column; gap: var(--cds-gap-xs); min-width: 0; flex: 1 1 20rem; }
+.rb-note { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); max-width: 80ch; line-height: 1.5; }
+.rb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 28rem), 1fr)); gap: var(--cds-gap-md); }
+.rb-more { font: inherit; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); background: none; cursor: pointer; border: 1px solid var(--color-border-line); border-radius: 999px; padding: 0.15rem 0.7rem; white-space: nowrap; }
+.rb-more[hidden] { display: none; }
 
 .rb-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
 .rb-legend span { display: inline-flex; align-items: center; gap: var(--cds-gap-xs); }
-.rb-sw { width: 0.625rem; height: 0.625rem; border-radius: 2px; display: inline-block; }
+.rb-sw { width: 0.625rem; height: 0.625rem; border-radius: 2px; display: inline-block; flex: none; }
+.rb-sw.dot { border-radius: 50%; }
 .rb-chart { position: relative; min-height: 12rem; }
 .rb-chart svg { display: block; overflow: visible; }
 .rb-tick { fill: var(--color-fg-muted); font-size: var(--cds-font-size-caption); font-family: var(--font-anthropic-sans); }
 .rb-name { fill: var(--color-fg); }
-.rb-val { fill: var(--color-fg); font-size: var(--cds-font-size-caption); font-family: var(--font-anthropic-sans); }
-.rb-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); white-space: nowrap; z-index: 2; }
-.rb-tip-h { color: var(--cds-text-secondary); margin-bottom: 2px; }
-.rb-tip-row { display: flex; align-items: center; gap: var(--cds-gap-xs); }
+.rb-axis-t { fill: var(--color-fg-muted); font-size: var(--cds-font-size-caption); font-family: var(--font-anthropic-sans); }
+.rb-val { fill: var(--color-fg-muted); font-size: var(--cds-font-size-caption); font-family: var(--font-anthropic-sans); }
+.rb-dlab { fill: var(--color-fg); font-size: var(--cds-font-size-caption); font-family: var(--font-anthropic-sans); paint-order: stroke; stroke: var(--color-panel); stroke-width: 3px; stroke-linejoin: round; }
+.rb-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-sm); font-size: var(--cds-font-size-caption); white-space: nowrap; z-index: 2; display: flex; flex-direction: column; gap: 2px; }
+.rb-tip[hidden] { display: none; }
+.rb-tip-h { color: var(--color-fg); font-weight: var(--cds-font-weight-medium); margin-bottom: 2px; }
+.rb-tip-row { display: flex; align-items: center; gap: var(--cds-gap-xs); color: var(--cds-text-secondary); }
 
-.rb-tablewrap { overflow-x: auto; }
-.rb table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-body); }
-.rb th { text-align: right; font-weight: var(--cds-font-weight-medium); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
-.rb td { text-align: right; padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+.rb-tablewrap { overflow-x: auto; margin: 0 calc(-1 * var(--cds-pad-lg)); padding: 0 var(--cds-pad-lg); }
+.rb table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--cds-font-size-body); }
+.rb th { text-align: right; font-weight: var(--cds-font-weight-medium); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; vertical-align: bottom; }
+.rb th button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit; white-space: nowrap; }
+.rb th button::after { content: ""; display: inline-block; width: 0.8em; }
+.rb th[aria-sort="descending"] button::after { content: " ↓"; }
+.rb th[aria-sort="ascending"] button::after { content: " ↑"; }
+.rb th[aria-sort] { color: var(--color-fg); }
+.rb td { text-align: right; padding: 0.4rem var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
 .rb th:first-child, .rb td:first-child, .rb th.l, .rb td.l { text-align: left; }
+.rb th:first-child, .rb td:first-child { position: sticky; left: 0; background: var(--color-panel); z-index: 1; }
+.rb tbody tr:hover td { background: var(--rb-row-hover); }
 .rb tr:last-child td { border-bottom: 0; }
+.rb td.best { font-weight: 650; color: var(--color-fg); }
+.rb td.muted { color: var(--color-fg-muted); }
+.rb-group th { border-bottom: 0; padding-bottom: 0; text-align: center; color: var(--color-fg-muted); font-weight: 400; }
+.rb-group th span { display: block; border-bottom: 1px solid var(--color-border-line); padding-bottom: 2px; }
+.rb-chip { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); padding: 0 0.4rem; border-radius: 4px; background: var(--rb-chip-bg); }
+.rb-pill { font-size: var(--cds-font-size-caption); padding: 0 0.45rem; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.3em; }
+.rb-pill::before { content: ""; width: 0.4rem; height: 0.4rem; border-radius: 50%; background: currentColor; }
+.rb-pill.is-done { color: var(--color-ok); }
+.rb-pill.is-running { color: var(--color-warn); }
+.rb-pill.is-partial, .rb-pill.is-not { color: var(--color-fg-muted); }
+.rb-pill.is-not::before { background: none; border: 1px solid currentColor; }
 
+.rb-picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15.5rem), 1fr)); gap: var(--cds-gap-md); }
+.rb-picks-wrap { display: flex; flex-direction: column; gap: var(--cds-gap-sm); }
+.rb-picks-wrap > h2 { display: flex; align-items: baseline; gap: var(--cds-gap-sm); }
+.rb-pick { position: relative; display: flex; flex-direction: column; gap: var(--cds-gap-sm); padding: var(--cds-pad-lg); padding-top: calc(var(--cds-pad-lg) + 4px); border-radius: var(--cds-radius); background: var(--rb-pick-bg); border: 1px solid var(--rb-pick-line); min-width: 0; overflow: hidden; }
+.rb-pick::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--dash-series-0); }
+.rb-pick-role { font-size: var(--cds-font-size-caption); font-weight: var(--cds-font-weight-medium); letter-spacing: 0.02em; text-transform: uppercase; color: var(--rb-pick-ink); }
+.rb-pick-model { font-family: var(--font-anthropic-serif); font-size: 1.375rem; line-height: 1.2; overflow-wrap: anywhere; }
+.rb-pick-stats { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs) var(--cds-gap-md); }
+.rb-pick-stat { display: flex; flex-direction: column; }
+.rb-pick-stat b { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); }
+.rb-pick-stat span { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.rb-pick-note { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); line-height: 1.5; }
+.rb-star { color: var(--rb-pick-ink); }
+.rb-badge { display: inline-block; margin-left: 0.5em; font-size: 0.6875rem; font-weight: var(--cds-font-weight-medium); color: var(--rb-pick-ink); background: var(--rb-pick-bg); border: 1px solid var(--rb-pick-line); border-radius: 999px; padding: 0 0.45rem; vertical-align: 1px; }
+.rb tbody tr.is-pick td { background: var(--rb-pick-row); }
+.rb tbody tr.is-pick td:first-child { box-shadow: inset 3px 0 0 var(--dash-series-0); font-weight: var(--cds-font-weight-medium); }
+.rb-name.is-pick { font-weight: 650; }
 .rb-fail { display: flex; align-items: center; justify-content: center; gap: var(--cds-gap-xs); min-height: inherit; height: 100%; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
 .rb-fail::before { content: ""; width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--color-bad); }
+.rb-empty { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); padding: var(--cds-pad-lg) 0; }
 .rb [data-dash-source-state=empty] { color: transparent; }
 .rb [data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+
+.rb { --rb-row-hover: color-mix(in srgb, var(--color-fg) 4%, transparent); --rb-chip-bg: color-mix(in srgb, var(--color-fg) 6%, transparent);
+  --rb-pick-bg: color-mix(in srgb, var(--dash-series-0) 9%, var(--color-panel)); --rb-pick-line: color-mix(in srgb, var(--dash-series-0) 35%, var(--color-border-line));
+  --rb-pick-row: color-mix(in srgb, var(--dash-series-0) 6%, var(--color-panel)); --rb-pick-ink: color-mix(in srgb, var(--dash-series-0) 75%, var(--color-fg)); }
 </style>
 
 <div class="rb">
-  <header>
-    <h1 id="title">R9700 model bench</h1>
-    <p class="rb-take" id="takeaway"><span class="dash-skeleton">—</span></p>
+  <header class="rb-head">
+    <div class="rb-head-text">
+      <h1 id="title">Model bench</h1>
+      <p class="rb-take" id="takeaway"><span class="dash-skeleton">—</span></p>
+    </div>
+    <div class="rb-seg" id="machine-switch" role="group" aria-label="Machine" hidden></div>
   </header>
 
-  <section class="rb-tiles" id="headline">
+  <section class="rb-picks-wrap" id="picks-wrap" hidden>
+    <h2>Current picks <span class="rb-meta">which model to use for what, from the analysis · ★ marks them below</span></h2>
+    <div class="rb-picks" id="picks"></div>
+  </section>
+
+  <section class="rb-tiles" id="tiles">
     <div class="rb-tile">
-      <div class="rb-lbl">Models with full results</div>
-      <div class="rb-big"><span data-source="summary" data-row="0" data-field="done" class="dash-skeleton">—</span><span class="rb-unit"> of <span data-source="summary" data-row="0" data-field="total">—</span></span></div>
-      <div class="rb-sub">both overnight suites done</div>
+      <div class="rb-lbl">Best LiveCodeBench</div>
+      <div class="rb-big"><span id="t-lcb" class="dash-skeleton">—</span><span class="rb-unit">%</span></div>
+      <div class="rb-sub" id="t-lcb-sub">—</div>
     </div>
     <div class="rb-tile">
-      <div class="rb-lbl">Best terminal-x3 pass rate</div>
-      <div class="rb-big"><span data-source="summary" data-row="0" data-field="best_term" class="dash-skeleton">—</span><span class="rb-unit">%</span></div>
-      <div class="rb-sub" data-source="summary" data-row="0" data-field="best_term_model">—</div>
+      <div class="rb-lbl">Best terminal-x3</div>
+      <div class="rb-big"><span id="t-term" class="dash-skeleton">—</span><span class="rb-unit">%</span></div>
+      <div class="rb-sub" id="t-term-sub">—</div>
     </div>
     <div class="rb-tile">
-      <div class="rb-lbl">Best LiveCodeBench pass@1</div>
-      <div class="rb-big"><span data-source="summary" data-row="0" data-field="best_lcb" class="dash-skeleton">—</span><span class="rb-unit">%</span></div>
-      <div class="rb-sub" data-source="summary" data-row="0" data-field="best_lcb_model">—</div>
+      <div class="rb-lbl">Fastest generation at 8k</div>
+      <div class="rb-big"><span id="t-speed" class="dash-skeleton">—</span><span class="rb-unit"> tok/s</span></div>
+      <div class="rb-sub" id="t-speed-sub">—</div>
     </div>
     <div class="rb-tile">
-      <div class="rb-lbl">Total benchmark time</div>
-      <div class="rb-big"><span data-source="summary" data-row="0" data-field="wall_h" class="dash-skeleton">—</span><span class="rb-unit"> h</span></div>
-      <div class="rb-sub">terminal-x3 + LiveCodeBench, models with full results</div>
+      <div class="rb-lbl">Models tested</div>
+      <div class="rb-big"><span id="t-models" class="dash-skeleton">—</span></div>
+      <div class="rb-sub" id="t-models-sub">—</div>
     </div>
   </section>
 
-  <section class="rb-card" id="progress">
-    <div class="rb-card-head">
-      <h2>Models tested</h2>
-      <p class="rb-note">In the order they first ran the <b>overnight</b> profile (terminal-x3, then LiveCodeBench), one model at a time on the R9700. "partial" means only one of the two suites has run.</p>
-    </div>
-    <ol class="rb-steps" id="steps" data-source="models"></ol>
+  <section class="rb-card">
+    <div class="rb-card-head"><div>
+      <h2>Quality against speed</h2>
+      <p class="rb-note">Each dot is a model: its best LiveCodeBench score (32k or 64k budget, 30 problems) against generation speed at 8k context, one request at a time. Up and to the right is better; labeled models are the ones nothing beats on both, and ★ the current picks (a pick with no speed run of its own isn't plotted). Hover a dot for details.</p>
+    </div></div>
+    <div class="rb-chart" id="chart-scatter"></div>
   </section>
 
   <div class="rb-grid">
-    <section class="rb-card" id="overnight-chart">
+    <section class="rb-card">
       <div class="rb-card-head">
-        <h2>Overnight scores</h2>
-        <p class="rb-note">Models with full results only. terminal-x3 repeats every agentic shell task three times; LiveCodeBench is an even sample of medium and hard v6 problems. Hover a model for counts.</p>
+        <div>
+          <h2>LiveCodeBench pass@1</h2>
+          <p class="rb-note">15 medium and 15 hard v6 problems, at a 32k and a 64k token budget. Sorted by the better of the two.</p>
+        </div>
+        <button type="button" class="rb-more" id="more-lcb" hidden></button>
       </div>
-      <div class="rb-legend" data-source="models">
-        <span><i class="rb-sw" id="sw0"></i>terminal-x3 pass</span>
-        <span><i class="rb-sw" id="sw1"></i>LiveCodeBench pass@1</span>
-      </div>
-      <div class="rb-chart" id="chart-overnight" data-source="models"></div>
+      <div class="rb-legend"><span><i class="rb-sw" id="sw-32"></i>32k budget</span><span><i class="rb-sw" id="sw-64"></i>64k budget</span></div>
+      <div class="rb-chart" id="chart-lcb"></div>
     </section>
 
-    <section class="rb-card" id="speed-chart">
-      <div class="rb-card-head">
-        <h2>Generation speed at 8k context</h2>
-        <p class="rb-note">Tokens per second from each model's latest quick-profile run. Hover a bar for prompt speed and time to first token.</p>
-      </div>
-      <div class="rb-chart" id="chart-speed" data-source="models"></div>
-    </section>
+    <div style="display:flex;flex-direction:column;gap:var(--cds-gap-md);min-width:0">
+      <section class="rb-card">
+        <div class="rb-card-head"><div>
+          <h2>terminal-x3 pass rate</h2>
+          <p class="rb-note">18 agentic shell tasks, three runs each, in a Docker sandbox.</p>
+        </div></div>
+        <div class="rb-chart" id="chart-term"></div>
+      </section>
+      <section class="rb-card">
+        <div class="rb-card-head">
+          <div>
+            <h2>Generation speed at 8k context</h2>
+            <p class="rb-note">Tokens per second, one request, from each model's latest speed run.</p>
+          </div>
+          <button type="button" class="rb-more" id="more-speed" hidden></button>
+        </div>
+        <div class="rb-chart" id="chart-speed"></div>
+      </section>
+    </div>
   </div>
 
-  <section class="rb-card" id="overnight-table">
-    <div class="rb-card-head">
+  <section class="rb-card">
+    <div class="rb-card-head"><div>
       <h2>Overnight results</h2>
-      <p class="rb-note">terminal-x3 uses the re-run of the fixed backup-rotation task; "as run" is the original score, when that task failed any model that tested its script. "Cut off" counts LiveCodeBench answers that hit the max_tokens limit (32k) before finishing; those score as failures, so the cap pulls down models that think at length. "LCB 64k" re-runs the same problems with a 64k budget. "Quant" is the GGUF quantization each model ran at; UD- marks Unsloth Dynamic quants, which keep sensitive layers at higher precision.</p>
-    </div>
-    <div class="rb-tablewrap">
-      <table data-source="models" data-row-key="model">
-        <thead><tr>
-          <th data-field="model">Model</th>
-          <th data-field="quant" class="l">Quant</th>
-          <th data-field="overnight_status" class="l">Status</th>
-          <th data-field="terminal_x3_pass_pct">terminal-x3 %</th>
-          <th data-field="terminal_x3_orig_pct">as run %</th>
-          <th data-field="lcb_pass_pct">LCB pass@1 %</th>
-          <th data-field="lcb_truncated">LCB cut off</th>
-          <th data-field="lcb64k_pass_pct">LCB 64k %</th>
-          <th data-field="lcb64k_truncated">64k cut off</th>
-          <th data-field="terminal_x3_wall_min">terminal-x3 min</th>
-          <th data-field="lcb_wall_min">LCB min</th>
-        </tr></thead>
-        <tbody id="tbody-overnight"></tbody>
-      </table>
-    </div>
+      <p class="rb-note">Click a column to sort. Bold marks each column's best. "Cut off" counts LiveCodeBench answers that hit the token budget, which score as failures. LCB-60 doubles the sample (30 medium + 30 hard, containing the 30) for the closest comparisons. terminal-x3 uses the re-run of the fixed backup-rotation task where one exists. "Quant" is the GGUF quantization; UD- marks Unsloth Dynamic quants.</p>
+    </div></div>
+    <div class="rb-tablewrap"><table id="table-overnight"></table></div>
   </section>
 
-  <section class="rb-card" id="quick-table">
-    <div class="rb-card-head">
-      <h2>Quick profile</h2>
-      <p class="rb-note">Latest quick run per model: a HumanEval+ subset, six terminal tasks, and server speed at a short and a long prompt.</p>
-    </div>
-    <div class="rb-tablewrap">
-      <table data-source="models" data-row-key="model">
-        <thead><tr>
-          <th data-field="model">Model</th>
-          <th data-field="backend" class="l">Backend</th>
-          <th data-field="quant" class="l">Quant</th>
-          <th data-field="humaneval_quick_pass_pct">HumanEval %</th>
-          <th data-field="humaneval_quick_plus_pct">HumanEval+ %</th>
-          <th data-field="terminal_quick_pass_pct">Terminal %</th>
-          <th data-field="pp512_tok_s">Prompt 512 tok/s</th>
-          <th data-field="tg512_tok_s">Gen @512 tok/s</th>
-          <th data-field="pp8k_tok_s">Prompt 8k tok/s</th>
-          <th data-field="tg8k_tok_s">Gen @8k tok/s</th>
-          <th data-field="ttft8k_s">TTFT @8k s</th>
-        </tr></thead>
-        <tbody id="tbody-quick"></tbody>
-      </table>
-    </div>
+  <section class="rb-card">
+    <div class="rb-card-head"><div>
+      <h2>Quick profile and speed</h2>
+      <p class="rb-note">A 40-problem HumanEval+ subset, six terminal tasks, and server speeds at a 512-token and an 8k-token prompt. llama-bench columns are raw llama.cpp kernel speed, without a server.</p>
+    </div></div>
+    <div class="rb-tablewrap"><table id="table-quick"></table></div>
   </section>
 </div>
 
 <script>
-dash.calc('summary', {
-  inputs: ['models'],
-  title: 'Leaderboard summary',
-  description: 'Counts models with both overnight suites done, picks the best overnight score per suite, and adds up their suite time in hours.',
-  fn: (models) => {
-    const n = (v) => (v === '' || v == null ? null : Number(v));
-    const done = models.filter((m) => m.overnight_status === 'done');
-    const best = (k) => done.reduce((a, m) => (a == null || n(m[k]) > n(a[k]) ? m : a), null);
-    const bt = best('terminal_x3_pass_pct');
-    const bl = best('lcb_pass_pct');
-    const running = models.find((m) => m.overnight_status === 'running');
-    const wallMin = done.reduce((s, m) => s + n(m.terminal_x3_wall_min) + n(m.lcb_wall_min), 0);
-    return [{
-      done: done.length,
-      total: models.length,
-      running: running ? running.model : '',
-      best_term_model: bt ? bt.model : '',
-      best_term: bt ? n(bt.terminal_x3_pass_pct) : null,
-      best_lcb_model: bl ? bl.model : '',
-      best_lcb: bl ? n(bl.lcb_pass_pct) : null,
-      wall_h: Math.round(wallMin / 6) / 10,
-    }];
-  },
-});
-
 (() => {
-  const n = (v) => (v === '' || v == null ? null : Number(v));
-  const show = (v) => (v === '' || v == null ? '—' : String(v));
   const $ = (id) => document.getElementById(id);
+  const n = (v) => (v === '' || v == null || Number.isNaN(Number(v)) ? null : Number(v));
+  const show = (v) => (v === '' || v == null ? '—' : String(v));
+  const f1 = d3.format('.1f');
+  const f0 = d3.format(',.0f');
+  const pct = (v) => (v == null ? '' : (Number.isInteger(v) ? String(v) : f1(v)) + '%');
+  const C = { blue: dash.colors[0], orange: dash.colors[1] };
+  const isPick = (r) => n(r.pick_order) != null;
+  $('sw-32').style.background = C.blue;
+  $('sw-64').style.background = C.orange;
 
-  $('sw0').style.background = dash.colors[0];
-  $('sw1').style.background = dash.colors[1];
+  // Machines: dataset id -> label. The page shows the switch only when more than one dataset exists.
+  const MACHINES = [
+    { id: 'models', label: 'R9700', title: 'R9700 model bench', meta: 'data/meta.json',
+      where: 'Radeon AI PRO R9700 (32 GB), llama.cpp on Vulkan plus Strata' },
+    { id: 'mac', label: 'Mac Studio', title: 'Mac Studio model bench', meta: 'data-mac/meta.json',
+      where: 'Mac Studio M5 Ultra (256 GB), llama.cpp, DwarfStar, sushi, oMLX and Splash' },
+  ];
+  let machine = 'models';
+  try { const h = location.hash.slice(1); if (h === 'mac' || h === 'r9700') machine = h === 'mac' ? 'mac' : 'models'; } catch {}
+  const expanded = { lcb: false, speed: false };
+  const sorts = { overnight: { key: 'lcb_best', dir: -1 }, quick: { key: 'tg8k_tok_s', dir: -1 } };
 
-  function failLine(el) {
-    el.textContent = '';
-    const d = document.createElement('div');
-    d.className = 'rb-fail';
-    d.textContent = 'Failed to load';
-    el.appendChild(d);
+  function el(tag, attrs, ...kids) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (k === 'class') e.className = v; else if (k === 'text') e.textContent = v; else e.setAttribute(k, v);
+    }
+    for (const k of kids) if (k != null) e.append(k);
+    return e;
   }
+  function failLine(box, msg) { box.textContent = ''; box.append(el('div', { class: 'rb-fail', text: msg || 'Failed to load' })); }
 
-  function span(text, attrs, bold) {
-    const el = document.createElement(bold ? 'b' : 'span');
-    el.textContent = text;
-    for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, v);
-    return el;
-  }
-
-  function fillMarks(s) {
-    document.querySelectorAll('[data-source="summary"][data-field]').forEach((el) => {
-      el.classList.remove('dash-skeleton');
-      if (s.status !== 'ok') { el.textContent = '—'; return; }
-      el.textContent = show(s.data[0][el.dataset.field]);
+  // Derived fields every view uses.
+  function prep(rows) {
+    return rows.map((r) => {
+      const a = n(r.lcb_pass_pct), b = n(r.lcb64k_pass_pct);
+      const best = a == null && b == null ? null : Math.max(a ?? -1, b ?? -1);
+      return { ...r, lcb_best: best, lcb_best_at: best == null ? '' : (b != null && b >= (a ?? -1) && b === best ? '64k' : '32k') };
     });
   }
 
-  function takeaway(s) {
+  function switcher() {
+    const box = $('machine-switch');
+    const avail = MACHINES.filter((m) => dash.data(m.id).status !== 'missing');
+    box.hidden = avail.length < 2;
+    box.textContent = '';
+    for (const m of avail) {
+      const b = el('button', { type: 'button', 'aria-pressed': String(m.id === machine), text: m.label });
+      b.addEventListener('click', () => {
+        machine = m.id;
+        try { history.replaceState(null, '', '#' + (m.id === 'mac' ? 'mac' : 'r9700')); } catch {}
+        render();
+      });
+      box.append(b);
+    }
+  }
+
+  function tiles(rows, M) {
+    const top = (k) => rows.filter((r) => n(r[k]) != null).sort((x, y) => n(y[k]) - n(x[k]));
+    const set = (id, v) => { const e = $(id); e.classList.remove('dash-skeleton'); e.textContent = v; };
+    const sub = (id, ...parts) => { const e = $(id); e.textContent = ''; e.append(...parts); };
+    const lcb = top('lcb_best'), term = top('terminal_x3_pass_pct'), sp = top('tg8k_tok_s');
+    const ties = (list, k) => list.filter((r) => n(r[k]) === n(list[0][k]));
+    if (lcb.length) {
+      set('t-lcb', pct(lcb[0].lcb_best).replace('%', ''));
+      sub('t-lcb-sub', el('b', { text: lcb[0].model }), ` at ${lcb[0].lcb_best_at}`);
+    } else { set('t-lcb', '—'); sub('t-lcb-sub', 'no runs yet'); }
+    if (term.length) {
+      const t = ties(term, 'terminal_x3_pass_pct');
+      set('t-term', pct(n(term[0].terminal_x3_pass_pct)).replace('%', ''));
+      sub('t-term-sub', el('b', { text: t[0].model }), t.length > 1 ? ` and ${t.length - 1} more` : '');
+    } else { set('t-term', '—'); sub('t-term-sub', 'no runs yet'); }
+    if (sp.length) {
+      set('t-speed', f0(n(sp[0].tg8k_tok_s)));
+      sub('t-speed-sub', el('b', { text: sp[0].model }));
+    } else { set('t-speed', '—'); sub('t-speed-sub', 'no runs yet'); }
+    const done = rows.filter((r) => r.overnight_status === 'done').length;
+    const running = rows.find((r) => r.overnight_status === 'running');
+    set('t-models', String(rows.length));
+    sub('t-models-sub', `${done} with full results`, running ? el('span', {}, ' · ', el('b', { text: running.model }), ' running') : '');
+
     const p = $('takeaway');
     p.textContent = '';
-    if (s.status !== 'ok') {
-      p.appendChild(span('—', { class: s.status === 'loading' ? 'dash-skeleton' : '' }));
+    p.append(M.where + '. ');
+    const pk = rows.filter(isPick).sort((a, b) => n(a.pick_order) - n(b.pick_order));
+    if (pk.length) {
+      p.append('Use ');
+      pk.forEach((r, i) => {
+        if (i) p.append(i === pk.length - 1 ? ' and ' : ', ');
+        p.append(el('b', { text: r.model }), ` for ${r.pick_role.toLowerCase()}`);
+      });
+      p.append('.');
       return;
     }
-    const r = s.data[0];
-    const m = (f, bold) => span(show(r[f]), { 'data-source': 'summary', 'data-row': '0', 'data-field': f }, bold);
-    const t = (x) => document.createTextNode(x);
-    if (r.best_term_model && r.best_term_model === r.best_lcb_model) {
-      p.append(m('best_term_model', true), t(' leads both overnight suites: '), m('best_term'),
-        t('% on terminal-x3 and '), m('best_lcb'), t('% on LiveCodeBench. '));
-    } else if (r.best_term_model) {
-      p.append(m('best_term_model', true), t(' leads terminal-x3 at '), m('best_term'), t('%; '),
-        m('best_lcb_model', true), t(' leads LiveCodeBench at '), m('best_lcb'), t('%. '));
-    }
-    p.append(m('done'), t(' of '), m('total'), t(' models have full results'));
-    if (r.running) p.append(t('; '), m('running', true), t(' is running now.'));
-    else p.append(t('.'));
+    if (lcb.length) p.append(el('b', { text: lcb[0].model }), ` has the best LiveCodeBench score (${pct(lcb[0].lcb_best)} at ${lcb[0].lcb_best_at})`);
+    if (sp.length) p.append(lcb.length ? '; ' : '', el('b', { text: sp[0].model }), ` generates fastest (${f0(n(sp[0].tg8k_tok_s))} tok/s at 8k)`);
+    p.append('.');
   }
 
-  function steps(d) {
-    const ol = $('steps');
-    ol.textContent = '';
-    ol.classList.remove('dash-skeleton');
-    if (d.status === 'loading') { ol.classList.add('dash-skeleton'); return; }
-    if (d.status !== 'ok') { failLine(ol); return; }
-    const rows = d.data.slice().sort((a, b) => n(a.overnight_order) - n(b.overnight_order));
-    for (const r of rows) {
-      const where = 'model=' + encodeURIComponent(r.model);
-      const li = document.createElement('li');
-      li.className = 'rb-step is-' + r.overnight_status;
-      li.append(
-        span(show(r.overnight_order), { class: 'rb-step-n', 'data-source': 'models', 'data-where': where, 'data-field': 'overnight_order' }),
-        span(r.model, { class: 'rb-step-name', 'data-source': 'models', 'data-where': where, 'data-field': 'model' }),
-        span(r.overnight_status, { class: 'rb-pill is-' + r.overnight_status, 'data-source': 'models', 'data-where': where, 'data-field': 'overnight_status' }),
-      );
-      ol.appendChild(li);
+  function picks(rows) {
+    const list = rows.filter((r) => n(r.pick_order) != null).sort((a, b) => n(a.pick_order) - n(b.pick_order));
+    const wrap = $('picks-wrap'), box = $('picks');
+    wrap.hidden = !list.length;
+    box.textContent = '';
+    for (const r of list) {
+      const stat = (v, label) => el('div', { class: 'rb-pick-stat' }, el('b', { text: v }), el('span', { text: label }));
+      const stats = el('div', { class: 'rb-pick-stats' });
+      if (r.lcb_best != null) stats.append(stat(pct(r.lcb_best), `LiveCodeBench ${r.lcb_best_at}`));
+      if (n(r.lcb128k_pass_pct) != null && n(r.lcb128k_pass_pct) > r.lcb_best) stats.append(stat(pct(n(r.lcb128k_pass_pct)), 'LiveCodeBench 128k'));
+      if (n(r.lcb60_pass_pct) != null) stats.append(stat(pct(n(r.lcb60_pass_pct)), 'LCB-60'));
+      if (n(r.terminal_x3_pass_pct) != null) stats.append(stat(pct(n(r.terminal_x3_pass_pct)), 'terminal-x3'));
+      if (n(r.tg8k_tok_s) != null) stats.append(stat(f0(n(r.tg8k_tok_s)), 'tok/s at 8k'));
+      box.append(el('article', { class: 'rb-pick' },
+        el('div', { class: 'rb-pick-role', text: r.pick_role }),
+        el('div', { class: 'rb-pick-model', text: r.model }),
+        stats,
+        r.pick_note ? el('p', { class: 'rb-pick-note', text: r.pick_note }) : null));
     }
   }
 
-  function table(tbodyId, d, fields, leftFields) {
-    const tb = $(tbodyId);
-    tb.textContent = '';
-    if (d.status !== 'ok') {
-      const tr = document.createElement('tr');
-      const td = document.createElement('td');
-      td.colSpan = fields.length;
-      if (d.status === 'loading') { td.className = 'dash-skeleton'; td.textContent = '—'; }
-      else failLine(td);
-      tr.appendChild(td);
-      tb.appendChild(tr);
-      return;
-    }
-    const rows = d.data.slice().sort((a, b) => n(a.overnight_order) - n(b.overnight_order));
-    for (const r of rows) {
-      const tr = document.createElement('tr');
-      for (const f of fields) {
-        const td = document.createElement('td');
-        if (leftFields.includes(f)) td.className = 'l';
-        if (f === 'overnight_status') {
-          const pill = document.createElement('span');
-          pill.className = 'rb-pill is-' + r[f];
-          pill.textContent = r[f];
-          td.appendChild(pill);
-        } else {
-          td.textContent = show(r[f]);
+  function tooltip(box) {
+    const tip = el('div', { class: 'rb-tip' });
+    tip.hidden = true;
+    box.append(tip);
+    return {
+      show(r, lines, x, y) {
+        tip.textContent = '';
+        tip.append(el('div', { class: 'rb-tip-h', text: r.model }));
+        for (const l of lines) {
+          const row = el('div', { class: 'rb-tip-row' });
+          if (l.color) { const sw = el('i', { class: 'rb-sw' }); sw.style.background = l.color; row.append(sw); }
+          row.append(l.text);
+          tip.append(row);
         }
-        tr.appendChild(td);
-      }
-      tb.appendChild(tr);
-    }
+        tip.hidden = false;
+        const bw = box.clientWidth, tw = tip.offsetWidth, th = tip.offsetHeight;
+        tip.style.left = Math.min(Math.max(0, x + 12), bw - tw) + 'px';
+        tip.style.top = Math.max(0, y - th - 10) + 'px';
+      },
+      hide() { tip.hidden = true; },
+    };
+  }
+
+  function measurer(svg) {
+    return (text, cls) => {
+      const t = svg.append('text').attr('class', cls).text(text);
+      const w = t.node().getComputedTextLength();
+      t.remove();
+      return w;
+    };
   }
 
   // Horizontal bars, one band per model, one bar per series inside it.
   function hbar(box, rows, series, opts) {
     box.textContent = '';
+    box.style.minHeight = '';
+    if (!rows.length) { box.append(el('div', { class: 'rb-empty', text: 'No runs yet on this machine.' })); return; }
     const W = Math.max(280, box.clientWidth || 600);
     const svg = d3.select(box).append('svg').attr('width', '100%');
-    const measure = (text, cls) => {
-      const el = svg.append('text').attr('class', cls).text(text);
-      const w = el.node().getComputedTextLength();
-      el.remove();
-      return w;
-    };
-    const left = d3.max(rows, (r) => measure(r.model, 'rb-tick rb-name')) + 12;
+    const measure = measurer(svg);
+    const maxName = Math.min(W * 0.45, d3.max(rows, (r) => measure((isPick(r) ? '★ ' : '') + r.model, 'rb-tick rb-name is-pick')));
+    const left = maxName + 12;
     const right = d3.max(rows, (r) => d3.max(series, (s) => measure(opts.fmt(n(r[s.key])), 'rb-val'))) + 10;
-    const barH = Math.min(32, series.length > 1 ? 14 : 18);
-    const bandH = series.length * (barH + 4) + 12;
+    const barH = series.length > 1 ? 12 : 13, gap = 3;
+    const bandH = series.length * barH + (series.length - 1) * gap + (series.length > 1 ? 12 : 8);
     const top = 2, bottom = 22;
     const H = top + rows.length * bandH + bottom;
     svg.attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
-    box.style.minHeight = H + 'px';
 
     const x = d3.scaleLinear([0, opts.max], [left, W - right]);
-    const y = d3.scaleBand(rows.map((r) => r.model), [top, H - bottom]).paddingInner(0.2).paddingOuter(0.05);
-
-    const nTicks = Math.max(2, Math.min(5, Math.floor((W - left - right) / 70)));
-    const ticks = x.ticks(nTicks);
+    const y = d3.scaleBand(rows.map((r) => r.model), [top, H - bottom]).paddingInner(0).paddingOuter(0);
+    const ticks = x.ticks(Math.max(2, Math.min(5, Math.floor((W - left - right) / 70))));
     svg.append('g').selectAll('line').data(ticks).join('line')
       .attr('x1', (d) => x(d)).attr('x2', (d) => x(d)).attr('y1', top).attr('y2', H - bottom)
       .style('stroke', 'var(--cds-chart-grid)');
     svg.append('g').selectAll('text').data(ticks).join('text')
-      .attr('class', 'rb-tick').attr('x', (d) => x(d)).attr('y', H - 6).attr('text-anchor', 'middle')
-      .text((d) => opts.tick(d));
+      .attr('class', 'rb-tick').attr('x', (d) => x(d)).attr('y', H - 6).attr('text-anchor', 'middle').text((d) => opts.tick(d));
 
-    const tip = document.createElement('div');
-    tip.className = 'rb-tip';
-    tip.hidden = true;
-    box.appendChild(tip);
-
-    const g = svg.append('g').selectAll('g').data(rows).join('g')
-      .attr('transform', (r) => `translate(0,${y(r.model)})`);
-    g.append('text').attr('class', 'rb-tick rb-name').attr('x', left - 10).attr('y', y.bandwidth() / 2)
-      .attr('dy', '0.35em').attr('text-anchor', 'end').text((r) => r.model);
-
+    const tip = tooltip(box);
+    const g = svg.append('g').selectAll('g').data(rows).join('g').attr('transform', (r) => `translate(0,${y(r.model)})`);
+    const label = (r) => { let t = r.model; while (t.length > 4 && measure(t, 'rb-tick rb-name') > maxName) t = t.slice(0, -2); return t === r.model ? t : t + '…'; };
+    const nm = g.append('text').attr('class', (r) => 'rb-tick rb-name' + (isPick(r) ? ' is-pick' : '')).attr('x', left - 10).attr('y', y.bandwidth() / 2)
+      .attr('dy', '0.35em').attr('text-anchor', 'end');
+    nm.filter(isPick).append('tspan').attr('class', 'rb-star').style('fill', 'var(--rb-pick-ink)').text('★ ');
+    nm.append('tspan').text(label);
+    const y0 = (y.bandwidth() - (series.length * barH + (series.length - 1) * gap)) / 2;
     series.forEach((s, i) => {
-      const yy = (y.bandwidth() - series.length * barH - (series.length - 1) * 4) / 2 + i * (barH + 4);
-      g.append('rect').attr('x', left).attr('y', yy).attr('height', barH).attr('rx', 4)
-        .attr('width', (r) => Math.max(0, x(n(r[s.key]) || 0) - left))
+      const yy = y0 + i * (barH + gap);
+      // Square at the baseline, 4px rounded at the data end.
+      g.filter((r) => n(r[s.key]) != null).append('path').attr('class', 'rb-bar')
+        .attr('d', (r) => {
+          const w = Math.max(1, x(n(r[s.key])) - left), rr = Math.min(4, w, barH / 2);
+          return `M${left},${yy}h${w - rr}a${rr},${rr} 0 0 1 ${rr},${rr}v${barH - 2 * rr}a${rr},${rr} 0 0 1 -${rr},${rr}h-${w - rr}z`;
+        })
         .style('fill', s.color);
       g.append('text').attr('class', 'rb-val').attr('x', (r) => x(n(r[s.key]) || 0) + 6)
         .attr('y', yy + barH / 2).attr('dy', '0.35em').text((r) => opts.fmt(n(r[s.key])));
     });
-
-    g.append('rect').attr('x', 0).attr('y', 0).attr('width', W).attr('height', y.bandwidth())
-      .style('fill', 'transparent')
-      .on('mouseenter', function (ev, r) {
-        g.selectAll('rect:not(:last-child)').style('opacity', (o) => (o === r ? 1 : 0.45));
-        tip.textContent = '';
-        const h = document.createElement('div');
-        h.className = 'rb-tip-h';
-        h.textContent = r.model;
-        tip.appendChild(h);
-        for (const line of opts.tipLines(r)) {
-          const row = document.createElement('div');
-          row.className = 'rb-tip-row';
-          if (line.color) {
-            const sw = document.createElement('i');
-            sw.className = 'rb-sw';
-            sw.style.background = line.color;
-            row.appendChild(sw);
-          }
-          row.appendChild(document.createTextNode(line.text));
-          tip.appendChild(row);
-        }
-        tip.hidden = false;
-        const bw = box.clientWidth, tw = tip.offsetWidth;
-        const px = Math.min(Math.max(0, (left / W) * bw), bw - tw);
-        tip.style.left = px + 'px';
-        tip.style.top = ((y(r.model) + y.bandwidth()) / H) * box.clientHeight + 4 + 'px';
+    g.append('rect').attr('x', 0).attr('y', 0).attr('width', W).attr('height', y.bandwidth()).style('fill', 'transparent')
+      .on('mousemove', function (ev, r) {
+        g.selectAll('.rb-bar').style('opacity', (o) => (o === r ? 1 : 0.35));
+        const [mx, my] = d3.pointer(ev, box);
+        tip.show(r, opts.tipLines(r), mx, my);
       })
-      .on('mouseleave', () => {
-        g.selectAll('rect:not(:last-child)').style('opacity', 1);
-        tip.hidden = true;
-      });
+      .on('mouseleave', () => { g.selectAll('.rb-bar').style('opacity', 1); tip.hide(); });
   }
 
-  function chartState(box, d) {
-    box.classList.remove('dash-skeleton');
-    if (d.status === 'loading') { box.textContent = ''; box.classList.add('dash-skeleton'); return false; }
-    if (d.status !== 'ok') { failLine(box); return false; }
-    return true;
+  // Best LiveCodeBench against generation speed. Pareto-front models get direct labels.
+  function scatter(box, rows) {
+    box.textContent = '';
+    const pts = rows.filter((r) => r.lcb_best != null && n(r.tg8k_tok_s) != null);
+    if (!pts.length) { box.append(el('div', { class: 'rb-empty', text: 'No models with both a LiveCodeBench score and a speed run yet.' })); return; }
+    const W = Math.max(300, box.clientWidth || 700);
+    const H = Math.round(Math.min(420, Math.max(260, W * 0.42)));
+    const m = { top: 26, right: 16, bottom: 38, left: 44 };
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+    const measure = measurer(svg);
+    const xMax = d3.max(pts, (r) => n(r.tg8k_tok_s)) * 1.08;
+    const yMin = Math.max(0, Math.floor((d3.min(pts, (r) => r.lcb_best) - 8) / 10) * 10);
+    const x = d3.scaleLinear([0, xMax], [m.left, W - m.right]).nice();
+    const y = d3.scaleLinear([yMin, 100], [H - m.bottom, m.top]);
+    svg.append('g').selectAll('line').data(y.ticks(5)).join('line')
+      .attr('x1', m.left).attr('x2', W - m.right).attr('y1', (d) => y(d)).attr('y2', (d) => y(d)).style('stroke', 'var(--cds-chart-grid)');
+    svg.append('g').selectAll('text').data(y.ticks(5)).join('text').attr('class', 'rb-tick')
+      .attr('x', m.left - 8).attr('y', (d) => y(d)).attr('dy', '0.35em').attr('text-anchor', 'end').text((d) => d + '%');
+    const xt = x.ticks(Math.max(2, Math.min(6, Math.floor(W / 110))));
+    svg.append('g').selectAll('text').data(xt).join('text').attr('class', 'rb-tick')
+      .attr('x', (d) => x(d)).attr('y', H - m.bottom + 16).attr('text-anchor', 'middle').text((d) => f0(d));
+    svg.append('line').attr('x1', m.left).attr('x2', W - m.right).attr('y1', H - m.bottom).attr('y2', H - m.bottom).style('stroke', 'var(--color-border-line)');
+    svg.append('text').attr('class', 'rb-axis-t').attr('x', W - m.right).attr('y', H - 4).attr('text-anchor', 'end').text('generation at 8k, tok/s →');
+    svg.append('text').attr('class', 'rb-axis-t').attr('x', 0).attr('y', 4).attr('dy', '0.7em').text('↑ best LiveCodeBench');
+
+    // Pareto front: no other model is at least as fast and at least as good (and better on one).
+    const front = new Set(pts.filter((p) => !pts.some((q) => q !== p && n(q.tg8k_tok_s) >= n(p.tg8k_tok_s) && q.lcb_best >= p.lcb_best
+      && (n(q.tg8k_tok_s) > n(p.tg8k_tok_s) || q.lcb_best > p.lcb_best))));
+    const fr = pts.filter((p) => front.has(p)).sort((a, b) => n(a.tg8k_tok_s) - n(b.tg8k_tok_s));
+    svg.append('path').attr('d', d3.line().x((r) => x(n(r.tg8k_tok_s))).y((r) => y(r.lcb_best)).curve(d3.curveStepAfter)(fr))
+      .style('fill', 'none').style('stroke', C.blue).style('stroke-opacity', 0.35).style('stroke-width', 2).style('stroke-dasharray', '4 4');
+
+    const dots = svg.append('g').selectAll('circle').data(pts).join('circle')
+      .attr('cx', (r) => x(n(r.tg8k_tok_s))).attr('cy', (r) => y(r.lcb_best)).attr('r', (r) => (front.has(r) ? 6 : 4.5))
+      .style('fill', (r) => (front.has(r) ? C.blue : 'var(--color-panel)'))
+      .style('stroke', (r) => (front.has(r) ? 'var(--color-panel)' : C.blue)).style('stroke-width', 2);
+
+    // Direct labels: picks first (starred), then the front, skipping any that would collide.
+    const placed = [];
+    const toLabel = [...pts.filter(isPick), ...fr.filter((r) => !isPick(r))];
+    svg.append('g').selectAll('circle').data(pts.filter(isPick)).join('circle')
+      .attr('cx', (r) => x(n(r.tg8k_tok_s))).attr('cy', (r) => y(r.lcb_best)).attr('r', 10)
+      .style('fill', 'none').style('stroke', C.blue).style('stroke-width', 1.5).style('stroke-opacity', 0.6);
+    for (const r of toLabel) {
+      const text = (isPick(r) ? '★ ' : '') + r.model;
+      const cx = x(n(r.tg8k_tok_s)), cy = y(r.lcb_best), w = measure(text, 'rb-dlab');
+      const o = isPick(r) ? 14 : 9;
+      const cands = [[cx + o, cy + 4, 'start'], [cx - o, cy + 4, 'end'], [cx - w / 2, cy - o - 4, 'start'], [cx - w / 2, cy + o + 11, 'start']];
+      for (const [lx, ly, anchor] of cands) {
+        const x0 = anchor === 'end' ? lx - w : lx, box2 = [x0, ly - 11, x0 + w, ly + 3];
+        if (x0 < 2 || box2[2] > W - 2 || box2[1] < 0 || box2[3] > H - m.bottom) continue;
+        if (placed.some((b) => !(box2[2] < b[0] || box2[0] > b[2] || box2[3] < b[1] || box2[1] > b[3]))) continue;
+        if (pts.some((q) => q !== r && x(n(q.tg8k_tok_s)) + 6 > box2[0] && x(n(q.tg8k_tok_s)) - 6 < box2[2]
+          && y(q.lcb_best) + 6 > box2[1] && y(q.lcb_best) - 6 < box2[3])) continue;
+        placed.push(box2);
+        svg.append('text').attr('class', 'rb-dlab').attr('x', lx).attr('y', ly).attr('text-anchor', anchor)
+          .style('font-weight', isPick(r) ? 650 : null).text(text);
+        break;
+      }
+    }
+
+    const tip = tooltip(box);
+    const vor = d3.Delaunay.from(pts, (r) => x(n(r.tg8k_tok_s)), (r) => y(r.lcb_best));
+    svg.append('rect').attr('x', m.left).attr('y', 0).attr('width', W - m.left - m.right).attr('height', H - m.bottom).style('fill', 'transparent')
+      .on('mousemove', (ev) => {
+        const [sx, sy] = d3.pointer(ev);
+        const i = vor.find(sx, sy), r = pts[i];
+        if (Math.hypot(sx - x(n(r.tg8k_tok_s)), sy - y(r.lcb_best)) > 40) { tip.hide(); dots.style('opacity', 1); return; }
+        dots.style('opacity', (o) => (o === r ? 1 : 0.4));
+        const [bx, by] = d3.pointer(ev, box);
+        tip.show(r, [
+          ...(isPick(r) ? [{ text: `★ Pick: ${r.pick_role}` }] : []),
+          { text: `${show(r.backend)} · ${show(r.quant)}` },
+          { text: `LiveCodeBench ${pct(n(r.lcb_pass_pct)) || '—'} at 32k, ${pct(n(r.lcb64k_pass_pct)) || '—'} at 64k` },
+          { text: `Generation ${f1(n(r.tg8k_tok_s))} tok/s at 8k` },
+          { text: `terminal-x3 ${pct(n(r.terminal_x3_pass_pct)) || '—'}` },
+        ], bx, by);
+      })
+      .on('mouseleave', () => { tip.hide(); dots.style('opacity', 1); });
   }
 
-  const f1 = d3.format('.1f');
-  const pct = (v) => (v == null ? '' : f1(v) + '%');
-  const tps = d3.format(',.0f');
-
-  dash.onData(() => {
-    const d = dash.data('models');
-    const s = dash.data('summary');
-    fillMarks(s);
-    takeaway(s);
-    steps(d);
-    table('tbody-overnight', d,
-      ['model', 'quant', 'overnight_status', 'terminal_x3_pass_pct', 'terminal_x3_orig_pct', 'lcb_pass_pct', 'lcb_truncated', 'lcb64k_pass_pct', 'lcb64k_truncated', 'terminal_x3_wall_min', 'lcb_wall_min'],
-      ['quant', 'overnight_status']);
-    table('tbody-quick', d,
-      ['model', 'backend', 'quant', 'humaneval_quick_pass_pct', 'humaneval_quick_plus_pct', 'terminal_quick_pass_pct', 'pp512_tok_s', 'tg512_tok_s', 'pp8k_tok_s', 'tg8k_tok_s', 'ttft8k_s'],
-      ['backend', 'quant']);
-
-    const ob = $('chart-overnight');
-    if (chartState(ob, d)) {
-      const done = d.data.filter((r) => r.overnight_status === 'done')
-        .sort((a, b) => n(a.overnight_order) - n(b.overnight_order));
-      if (!done.length) { ob.textContent = ''; }
-      else hbar(ob, done, [
-        { key: 'terminal_x3_pass_pct', color: dash.colors[0] },
-        { key: 'lcb_pass_pct', color: dash.colors[1] },
-      ], {
-        max: 100,
-        fmt: pct,
-        tick: (v) => v + '%',
-        tipLines: (r) => [
-          { text: `Quant  ${show(r.quant)}` },
-          { color: dash.colors[0], text: `terminal-x3  ${pct(n(r.terminal_x3_pass_pct))} of ${show(r.terminal_x3_episodes)} episodes (as run ${pct(n(r.terminal_x3_orig_pct))})` },
-          { color: dash.colors[1], text: `LiveCodeBench  ${pct(n(r.lcb_pass_pct))}, ${show(r.lcb_truncated)} of ${show(r.lcb_problems)} cut off` },
-        ],
-      });
+  // Sortable table with best-in-column bold and a thin bar under percentage cells.
+  function table(id, rows, cols, sortKey, groups) {
+    const t = $(id);
+    t.textContent = '';
+    const s = sorts[sortKey];
+    const present = cols.filter((c) => c.always || rows.some((r) => r[c.key] !== '' && r[c.key] != null));
+    const thead = el('thead');
+    if (groups) {
+      const gr = el('tr', { class: 'rb-group' });
+      let i = 0;
+      while (i < present.length) {
+        const g = present[i].group || '';
+        let span = 0;
+        while (i + span < present.length && (present[i + span].group || '') === g) span++;
+        gr.append(el('th', { colspan: String(span) }, g ? el('span', { text: g }) : ''));
+        i += span;
+      }
+      thead.append(gr);
     }
-
-    const sb = $('chart-speed');
-    if (chartState(sb, d)) {
-      const rows = d.data.filter((r) => n(r.tg8k_tok_s) != null)
-        .sort((a, b) => n(b.tg8k_tok_s) - n(a.tg8k_tok_s));
-      hbar(sb, rows, [{ key: 'tg8k_tok_s', color: dash.colors[0] }], {
-        max: d3.max(rows, (r) => n(r.tg8k_tok_s)) * 1.05,
-        fmt: (v) => (v == null ? '' : f1(v)),
-        tick: (v) => tps(v),
-        tipLines: (r) => [
-          { text: `Quant  ${show(r.quant)}` },
-          { text: `Generation @8k  ${show(r.tg8k_tok_s)} tok/s` },
-          { text: `Prompt 8k  ${tps(n(r.pp8k_tok_s))} tok/s` },
-          { text: `Time to first token  ${show(r.ttft8k_s)} s` },
-        ],
+    const hr = el('tr');
+    for (const c of present) {
+      const th = el('th', { class: c.left ? 'l' : '', scope: 'col' });
+      if (s.key === c.key) th.setAttribute('aria-sort', s.dir < 0 ? 'descending' : 'ascending');
+      const b = el('button', { type: 'button', text: c.label });
+      b.addEventListener('click', () => {
+        if (s.key === c.key) s.dir = -s.dir; else { s.key = c.key; s.dir = c.left || c.better === 'low' ? 1 : -1; }
+        render();
       });
+      th.append(b);
+      hr.append(th);
     }
-  });
+    thead.append(hr);
+    t.append(thead);
+
+    const best = {};
+    for (const c of present) {
+      if (!c.better) continue;
+      const vals = rows.map((r) => n(r[c.key])).filter((v) => v != null);
+      if (vals.length > 1) best[c.key] = c.better === 'low' ? d3.min(vals) : d3.max(vals);
+    }
+    const val = (r, k) => { const v = n(r[k]); return v == null ? (r[k] || '') : v; };
+    const sorted = rows.slice().sort((a, b) => {
+      const va = val(a, s.key), vb = val(b, s.key);
+      if (va === '' && vb !== '') return 1;
+      if (vb === '' && va !== '') return -1;
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * s.dir;
+      return String(va).localeCompare(String(vb)) * s.dir;
+    });
+    const tb = el('tbody');
+    for (const r of sorted) {
+      const tr = el('tr', { class: isPick(r) ? 'is-pick' : '' });
+      for (const c of present) {
+        const td = el('td', { class: c.left ? 'l' : '' });
+        const v = r[c.key];
+        if (c.key === 'overnight_status') {
+          td.append(el('span', { class: 'rb-pill is-' + (v === 'not run' ? 'not' : v), text: v || '—' }));
+        } else if (c.key === 'model') {
+          td.append(r.model);
+          if (isPick(r)) td.append(el('span', { class: 'rb-badge', title: r.pick_role, text: '★ ' + r.pick_role }));
+        } else if (c.key === 'backend') {
+          td.append(el('span', { class: 'rb-chip', text: show(v) }));
+        } else {
+          td.textContent = show(v);
+          if (v === '' || v == null) td.classList.add('muted');
+          if (best[c.key] != null && n(v) === best[c.key]) td.classList.add('best');
+        }
+        tr.append(td);
+      }
+      tb.append(tr);
+    }
+    t.append(tb);
+  }
+
+  const OVERNIGHT = [
+    { key: 'model', label: 'Model', left: true, always: true },
+    { key: 'backend', label: 'Engine', left: true },
+    { key: 'quant', label: 'Quant', left: true },
+    { key: 'overnight_status', label: 'Status', left: true },
+    { key: 'lcb_pass_pct', label: '32k %', group: 'LiveCodeBench (30)', better: 'high', pct: true },
+    { key: 'lcb_truncated', label: 'cut off', group: 'LiveCodeBench (30)', better: 'low' },
+    { key: 'lcb64k_pass_pct', label: '64k %', group: 'LiveCodeBench (30)', better: 'high', pct: true },
+    { key: 'lcb64k_truncated', label: 'cut off', group: 'LiveCodeBench (30)', better: 'low' },
+    { key: 'lcb128k_pass_pct', label: '128k %', group: 'LiveCodeBench (30)', better: 'high', pct: true },
+    { key: 'lcb_wall_min', label: '32k min', group: 'LiveCodeBench (30)', better: 'low' },
+    { key: 'lcb60_pass_pct', label: '32k %', group: 'LCB-60', better: 'high', pct: true },
+    { key: 'lcb60_wall_min', label: 'min', group: 'LCB-60', better: 'low' },
+    { key: 'lcb60_64k_pass_pct', label: '64k %', group: 'LCB-60', better: 'high', pct: true },
+    { key: 'lcb60_64k_wall_min', label: 'min', group: 'LCB-60', better: 'low' },
+    { key: 'terminal_x3_pass_pct', label: 'pass %', group: 'terminal-x3', better: 'high', pct: true },
+    { key: 'terminal_x3_orig_pct', label: 'as run %', group: 'terminal-x3' },
+    { key: 'terminal_x3_wall_min', label: 'min', group: 'terminal-x3', better: 'low' },
+  ];
+  const QUICK = [
+    { key: 'model', label: 'Model', left: true, always: true },
+    { key: 'backend', label: 'Engine', left: true },
+    { key: 'quant', label: 'Quant', left: true },
+    { key: 'humaneval_quick_pass_pct', label: 'HumanEval', group: 'Quick quality %', better: 'high', pct: true },
+    { key: 'humaneval_quick_plus_pct', label: 'HumanEval+', group: 'Quick quality %', better: 'high', pct: true },
+    { key: 'terminal_quick_pass_pct', label: 'terminal', group: 'Quick quality %', better: 'high', pct: true },
+    { key: 'pp512_tok_s', label: 'prompt 512', group: 'Server speed, tok/s', better: 'high' },
+    { key: 'tg512_tok_s', label: 'gen @512', group: 'Server speed, tok/s', better: 'high' },
+    { key: 'pp8k_tok_s', label: 'prompt 8k', group: 'Server speed, tok/s', better: 'high' },
+    { key: 'tg8k_tok_s', label: 'gen @8k', group: 'Server speed, tok/s', better: 'high' },
+    { key: 'ttft8k_s', label: 'first token 8k, s', group: 'Server speed, tok/s', better: 'low' },
+    { key: 'bench_pp512_tok_s', label: 'pp512', group: 'llama-bench', better: 'high' },
+    { key: 'bench_tg128_tok_s', label: 'tg128', group: 'llama-bench', better: 'high' },
+  ];
+
+  const LIMIT = 12;
+  function moreButton(id, key, total) {
+    const b = $(id);
+    b.hidden = total <= LIMIT;
+    b.textContent = expanded[key] ? 'Show top ' + LIMIT : `Show all ${total}`;
+    b.onclick = () => { expanded[key] = !expanded[key]; render(); };
+  }
+
+  function render() {
+    switcher();
+    const M = MACHINES.find((m) => m.id === machine) || MACHINES[0];
+    $('title').textContent = M.title;
+    try { document.title = M.title; } catch {}
+    window.dispatchEvent(new CustomEvent('rb-machine', { detail: M }));
+    const d = dash.data(M.id);
+    const boxes = ['chart-scatter', 'chart-lcb', 'chart-term', 'chart-speed'].map($);
+    if (d.status === 'loading') { boxes.forEach((b) => { b.textContent = ''; }); return; }
+    if (d.status !== 'ok') { boxes.forEach((b) => failLine(b)); return; }
+    const rows = prep(d.data);
+    picks(rows);
+    tiles(rows, M);
+    scatter($('chart-scatter'), rows);
+
+    const lcb = rows.filter((r) => r.lcb_best != null).sort((a, b) => b.lcb_best - a.lcb_best);
+    moreButton('more-lcb', 'lcb', lcb.length);
+    hbar($('chart-lcb'), expanded.lcb ? lcb : lcb.slice(0, LIMIT), [
+      { key: 'lcb_pass_pct', color: C.blue }, { key: 'lcb64k_pass_pct', color: C.orange },
+    ], {
+      max: 100, fmt: pct, tick: (v) => v + '%',
+      tipLines: (r) => [
+        { text: `${show(r.backend)} · ${show(r.quant)}` },
+        { color: C.blue, text: `32k  ${pct(n(r.lcb_pass_pct)) || '—'}, ${show(r.lcb_truncated)} cut off` },
+        { color: C.orange, text: `64k  ${pct(n(r.lcb64k_pass_pct)) || '—'}, ${show(r.lcb64k_truncated)} cut off` },
+        ...(n(r.lcb60_pass_pct) != null ? [{ text: `60 problems at 32k  ${pct(n(r.lcb60_pass_pct))}` }] : []),
+      ],
+    });
+
+    const term = rows.filter((r) => n(r.terminal_x3_pass_pct) != null).sort((a, b) => n(b.terminal_x3_pass_pct) - n(a.terminal_x3_pass_pct));
+    hbar($('chart-term'), term, [{ key: 'terminal_x3_pass_pct', color: C.blue }], {
+      max: 100, fmt: pct, tick: (v) => v + '%',
+      tipLines: (r) => [
+        { text: `${show(r.backend)} · ${show(r.quant)}` },
+        { text: `${pct(n(r.terminal_x3_pass_pct))} of ${show(r.terminal_x3_episodes)} episodes, ${show(r.terminal_x3_wall_min)} min` },
+      ],
+    });
+
+    const sp = rows.filter((r) => n(r.tg8k_tok_s) != null).sort((a, b) => n(b.tg8k_tok_s) - n(a.tg8k_tok_s));
+    moreButton('more-speed', 'speed', sp.length);
+    hbar($('chart-speed'), expanded.speed ? sp : sp.slice(0, LIMIT), [{ key: 'tg8k_tok_s', color: C.blue }], {
+      max: (d3.max(sp, (r) => n(r.tg8k_tok_s)) || 1) * 1.05, fmt: (v) => (v == null ? '' : f0(v)), tick: (v) => f0(v),
+      tipLines: (r) => [
+        { text: `${show(r.backend)} · ${show(r.quant)}` },
+        { text: `Generation @8k  ${show(r.tg8k_tok_s)} tok/s` },
+        { text: `Prompt 8k  ${n(r.pp8k_tok_s) == null ? '—' : f0(n(r.pp8k_tok_s))} tok/s` },
+        { text: `First token @8k  ${show(r.ttft8k_s)} s` },
+      ],
+    });
+
+    table('table-overnight', rows, OVERNIGHT, 'overnight', true);
+    table('table-quick', rows, QUICK, 'quick', true);
+  }
+
+  dash.onData(render);
 })();
 </script>

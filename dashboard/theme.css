@@ -14,14 +14,15 @@
   --color-warn: #b26a00;
   --color-bad: #c0392b;
 
-  --dash-series-0: #3b6fd4;
-  --dash-series-1: #d4793b;
-  --dash-series-2: #3ba68a;
-  --dash-series-3: #a65bc7;
-  --dash-series-4: #c7a83b;
-  --dash-series-5: #c75b7a;
-  --dash-series-6: #5bb0c7;
-  --dash-series-7: #7a7a7a;
+  /* Categorical order from the dataviz reference palette (validated for CVD on both surfaces). */
+  --dash-series-0: #2a78d6;
+  --dash-series-1: #eb6834;
+  --dash-series-2: #1baf7a;
+  --dash-series-3: #eda100;
+  --dash-series-4: #e87ba4;
+  --dash-series-5: #008300;
+  --dash-series-6: #6250d6;
+  --dash-series-7: #e34948;
 
   --cds-gap-xs: 0.25rem;
   --cds-gap-sm: 0.5rem;
@@ -55,8 +56,14 @@
     --color-ok: #5cbf83;
     --color-warn: #e0a040;
     --color-bad: #e5675a;
-    --dash-series-0: #7aa2f0;
-    --dash-series-1: #f0a272;
+    --dash-series-0: #3987e5;
+    --dash-series-1: #d95926;
+    --dash-series-2: #199e70;
+    --dash-series-3: #c98500;
+    --dash-series-4: #d55181;
+    --dash-series-5: #0ca30c;
+    --dash-series-6: #9085e9;
+    --dash-series-7: #e66767;
     --cds-shadow-popover: 0 4px 16px rgb(0 0 0 / 0.5);
     --cds-chart-grid: #34332f;
   }
@@ -71,8 +78,14 @@
   --color-ok: #5cbf83;
   --color-warn: #e0a040;
   --color-bad: #e5675a;
-  --dash-series-0: #7aa2f0;
-  --dash-series-1: #f0a272;
+  --dash-series-0: #3987e5;
+  --dash-series-1: #d95926;
+  --dash-series-2: #199e70;
+  --dash-series-3: #c98500;
+  --dash-series-4: #d55181;
+  --dash-series-5: #0ca30c;
+  --dash-series-6: #9085e9;
+  --dash-series-7: #e66767;
   --cds-shadow-popover: 0 4px 16px rgb(0 0 0 / 0.5);
   --cds-chart-grid: #34332f;
 }
@@ -84,7 +97,7 @@ body {
   color: var(--color-fg);
   font-family: var(--font-anthropic-sans);
 }
-.shell { max-width: 80rem; margin: 0 auto; padding: 1rem 1rem 3rem; }
+.shell { max-width: 84rem; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
 .shell-bar {
   display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem;
   font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin-bottom: 1.25rem;

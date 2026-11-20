@@ -48,6 +48,11 @@ METRICS: dict[str, tuple[str | tuple[str, ...], str]] = {
     "ttft8k_s": (SPEED, "ttft@8k"),
     "bench_pp512_tok_s": ("kernels", "pp512"),     # llama-bench, no server
     "bench_tg128_tok_s": ("kernels", "tg128"),
+    "lcb60_pass_pct": ("livecodebench-60", "pass@1"),          # 30 medium + 30 hard, contains the 30
+    "lcb60_truncated": ("livecodebench-60", "truncated"),
+    "lcb60_wall_min": ("livecodebench-60", "wall"),
+    "lcb60_64k_pass_pct": ("livecodebench-60-64k", "pass@1"),
+    "lcb60_64k_wall_min": ("livecodebench-60-64k", "wall"),
 }
 DETAILS: dict[str, tuple[str, str]] = {
     "terminal_x3_episodes": ("terminal-x3", "episodes"),
@@ -55,6 +60,9 @@ DETAILS: dict[str, tuple[str, str]] = {
 }
 COLUMNS = ["model", "backend", "quant", "overnight_order", "overnight_status", *METRICS, "terminal_x3_orig_pct",
            *DETAILS]
+# The current recommendation for each role (`outputs.picks` in the config), so the page and RESULTS.md can lead with them.
+PICK_COLUMNS = ["pick_order", "pick_role", "pick_note"]
+COLUMNS += PICK_COLUMNS
 
 # Quant names as they appear in GGUF filenames (Unsloth's dynamic quants keep their UD- prefix). ik_llama.cpp's
 # IQn_K types (Avalon's "IQ3KS") are matched by name: their header ftype numbers collide with llama.cpp's.
@@ -249,6 +257,22 @@ def compare_rows(runs: list[dict[str, Any]], base: str, other: str, suffix: str 
     return rows
 
 
+def apply_picks(rows: list[dict[str, Any]], picks: list[dict[str, Any]] | None) -> list[str]:
+    """Mark the configured picks on their rows (pick_order from 1, role, note); returns picks with no row."""
+    by_model = {r["model"]: r for r in rows}
+    for r in rows:
+        for c in PICK_COLUMNS:
+            r[c] = ""
+    missing = []
+    for i, p in enumerate(picks or [], 1):
+        r = by_model.get(p["model"])
+        if r is None:
+            missing.append(p["model"])
+            continue
+        r.update(pick_order=i, pick_role=p.get("role", ""), pick_note=p.get("note", ""))
+    return missing
+
+
 def write_data(rows: list[dict[str, Any]], data_dir: Path) -> Path:
     data_dir.mkdir(parents=True, exist_ok=True)
     out = data_dir / "models.csv"
@@ -306,6 +330,27 @@ def _present(rows: list[dict[str, Any]], cols: dict[str, str]) -> dict[str, str]
     return {c: h for i, (c, h) in enumerate(cols.items()) if i == 0 or any(r.get(c, "") != "" for r in rows)}
 
 
+def _picks_md(rows: list[dict[str, Any]]) -> str:
+    """The configured picks as a table: role, model, its headline numbers, why."""
+    picks = sorted((r for r in rows if r.get("pick_order") not in ("", None)), key=lambda r: int(r["pick_order"]))
+    if not picks:
+        return ""
+
+    def lcb(r: dict[str, Any]) -> str:
+        a, b = _num(r.get("lcb_pass_pct")), _num(r.get("lcb64k_pass_pct"))
+        if a is None and b is None:
+            return "—"
+        return f"{a:g}% at 32k" if b is None or (a is not None and a >= b) else f"{b:g}% at 64k"
+
+    out = ["\n## Current picks\n\n", "Which model to use for what on this machine, from the analysis.\n\n",
+           "| Role | Model | LiveCodeBench | terminal-x3 | Gen @8k | Why |\n|---|---|---|---|---|---|\n"]
+    for r in picks:
+        t = f"{_num(r['terminal_x3_pass_pct']):g}%" if _num(r.get("terminal_x3_pass_pct")) is not None else "—"
+        g = f"{_num(r['tg8k_tok_s']):g} tok/s" if _num(r.get("tg8k_tok_s")) is not None else "—"
+        out.append(f"| **{r['pick_role']}** | **{r['model']}** | {lcb(r)} | {t} | {g} | {r.get('pick_note', '')} |\n")
+    return "".join(out)
+
+
 def write_markdown(rows: list[dict[str, Any]], out: Path, hardware: str,
                    compare: list[dict[str, Any]] | None = None, other: str = "",
                    overnight: tuple[str, ...] | list[str] = OVERNIGHT, notes: str = "",
@@ -355,20 +400,24 @@ def write_markdown(rows: list[dict[str, Any]], out: Path, hardware: str,
                       "lcb_pass_pct": "LCB pass@1 %", "lcb_truncated": "LCB cut off", "lcb64k_pass_pct": "LCB 64k %",
                       "lcb64k_truncated": "64k cut off", "lcb128k_pass_pct": "LCB 128k %",
                       "lcb128k_truncated": "128k cut off", "terminal_x3_wall_min": "terminal-x3 min",
-                      "lcb_wall_min": "LCB min"}
+                      "lcb_wall_min": "LCB min", "lcb60_pass_pct": "LCB-60 %", "lcb60_truncated": "LCB-60 cut off",
+                      "lcb60_wall_min": "LCB-60 min", "lcb60_64k_pass_pct": "LCB-60 64k %",
+                      "lcb60_64k_wall_min": "LCB-60 64k min"}
     if len({r["backend"] for r in rows}) < 2:
         overnight_cols.pop("backend")
     parts += [
+        _picks_md(rows),
         "\n## Overnight profile\n\n",
         terminal_text,
         "**LiveCodeBench** is an evenly spaced sample of 15 medium and 15 hard v6 problems (Jan–Apr 2025), "
         "with a 32k-token budget; **LCB 64k** re-runs the same problems with 64k for models that ran out of room, "
-        "and **LCB 128k** with 128k for models still cut off at 64k.\n\n",
+        "and **LCB 128k** with 128k for models still cut off at 64k. **LCB-60** doubles the sample (30 medium + "
+        "30 hard, a superset of the 30) for the closest comparisons, at 32k and 64k.\n\n",
         (_bar_chart("terminal-x3 pass rate (%)", "pass %", done, "terminal_x3_pass_pct", 100) + "\n") if has_terminal else "",
         _bar_chart("LiveCodeBench pass@1 (%)", "pass@1 %", done, "lcb_pass_pct", 100), "\n",
         _table(rows, _present(rows, overnight_cols),
                {"terminal_x3_pass_pct": True, "lcb_pass_pct": True, "lcb64k_pass_pct": True,
-                "lcb128k_pass_pct": True}),
+                "lcb128k_pass_pct": True, "lcb60_pass_pct": True, "lcb60_64k_pass_pct": True}),
         "\n\"Cut off\" counts LiveCodeBench answers that hit `max_tokens` before finishing. Those score as "
         "failures, so the cap pulls down models that think at length. \"Quant\" is the GGUF quantization each model "
         "ran at; `UD-` marks Unsloth Dynamic quants, which keep sensitive layers at higher precision. "
