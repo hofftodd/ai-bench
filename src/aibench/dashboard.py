@@ -282,6 +282,93 @@ def write_data(rows: list[dict[str, Any]], data_dir: Path) -> Path:
         w.writerows(rows)
     meta = {"updated": datetime.now().astimezone().isoformat(timespec="seconds"), "models": len(rows)}
     (data_dir / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
+    write_scatter_svg(rows, data_dir / SCATTER_SVG)
+    return out
+
+
+SCATTER_SVG = "quality-speed.svg"
+
+
+def _esc(t: str) -> str:
+    return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def write_scatter_svg(rows: list[dict[str, Any]], out: Path) -> Path | None:
+    """Quality against speed as a static SVG for RESULTS.md (GitHub can't run the dashboard): best LiveCodeBench
+    (32k or 64k) against generation at 8k. The Pareto front is joined and labeled, picks are ringed and starred.
+    Light and dark follow the viewer's system setting. Returns None (and removes a stale file) with no points."""
+    pts = []
+    for r in rows:
+        a, b, sp = _num(r.get("lcb_pass_pct")), _num(r.get("lcb64k_pass_pct")), _num(r.get("tg8k_tok_s"))
+        if sp is None or (a is None and b is None):
+            continue
+        pts.append({"r": r, "x": sp, "y": max(v for v in (a, b) if v is not None),
+                    "pick": r.get("pick_order") not in ("", None)})
+    if not pts:
+        out.unlink(missing_ok=True)
+        return None
+    W, H = 880, 440
+    ml, mr, mt, mb = 52, 24, 40, 46
+    xmax = max(p["x"] for p in pts) * 1.08
+    step = 50 if xmax > 150 else 25
+    xmax = -(-xmax // step) * step
+    ymin = max(0, (min(p["y"] for p in pts) - 8) // 10 * 10)
+    X = lambda v: ml + v / xmax * (W - ml - mr)
+    Y = lambda v: H - mb - (v - ymin) / (100 - ymin) * (H - mt - mb)
+    front = [p for p in pts if not any(q is not p and q["x"] >= p["x"] and q["y"] >= p["y"]
+                                       and (q["x"] > p["x"] or q["y"] > p["y"]) for q in pts)]
+    front.sort(key=lambda p: p["x"])
+    o = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" '
+         'font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Helvetica, Arial, sans-serif" font-size="12">',
+         "<style>.bg{fill:#ffffff;stroke:#e6e3da}.ink{fill:#1f1e1d}.mut{fill:#6b6a66}.grid{stroke:#ebe8df}"
+         ".dot{fill:#2a78d6;stroke:#ffffff}.hol{fill:#ffffff;stroke:#2a78d6}.ring{fill:none;stroke:#2a78d6}"
+         ".front{fill:none;stroke:#2a78d6}.halo{stroke:#ffffff}"
+         "@media (prefers-color-scheme: dark){.bg{fill:#262523;stroke:#3a3936}.ink{fill:#ecebe6}.mut{fill:#a3a29c}"
+         ".grid{stroke:#34332f}.dot{fill:#3987e5;stroke:#262523}.hol{fill:#262523;stroke:#3987e5}"
+         ".ring{stroke:#3987e5}.front{stroke:#3987e5}.halo{stroke:#262523}}</style>",
+         f'<rect class="bg" x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="8"/>',
+         f'<text class="ink" x="{ml}" y="24" font-size="14" font-weight="600">Quality against speed</text>',
+         f'<text class="mut" x="{W - mr}" y="24" text-anchor="end">best LiveCodeBench (32k or 64k, 30 problems) · '
+         'generation at 8k, one request · ★ current picks</text>']
+    for t in range(int(ymin), 101, 10):
+        o.append(f'<line class="grid" x1="{ml}" x2="{W - mr}" y1="{Y(t):.1f}" y2="{Y(t):.1f}"/>'
+                 f'<text class="mut" x="{ml - 8}" y="{Y(t) + 4:.1f}" text-anchor="end">{t}%</text>')
+    for t in range(0, int(xmax) + 1, step):
+        o.append(f'<text class="mut" x="{X(t):.1f}" y="{H - mb + 18}" text-anchor="middle">{t}</text>')
+    o.append(f'<text class="mut" x="{W - mr}" y="{H - 10}" text-anchor="end">tok/s →</text>')
+    if len(front) > 1:
+        # Step from each front point to the next: across at its height, then down to the next one.
+        d = [f"M{X(front[0]['x']):.1f},{Y(front[0]['y']):.1f}"]
+        d += [f"H{X(p['x']):.1f}V{Y(p['y']):.1f}" for p in front[1:]]
+        o.append(f'<path class="front" d="{" ".join(d)}" stroke-width="2" stroke-dasharray="4 4" opacity="0.4"/>')
+    for p in pts:
+        if p["pick"]:
+            o.append(f'<circle class="ring" cx="{X(p["x"]):.1f}" cy="{Y(p["y"]):.1f}" r="10" stroke-width="1.5" opacity="0.6"/>')
+    for p in pts:
+        on = p in front or p["pick"]
+        o.append(f'<circle class="{"dot" if on else "hol"}" cx="{X(p["x"]):.1f}" cy="{Y(p["y"]):.1f}" '
+                 f'r="{6 if on else 4.5}" stroke-width="2"><title>{_esc(p["r"]["model"])}: {p["y"]:g}%, '
+                 f'{p["x"]:g} tok/s</title></circle>')
+    placed: list[tuple[float, float, float, float]] = []
+    for p in [q for q in pts if q["pick"]] + [q for q in front if not q["pick"]]:
+        text = ("★ " if p["pick"] else "") + p["r"]["model"]
+        w, cx, cy, off = len(text) * 6.7 + 4, X(p["x"]), Y(p["y"]), 14 if p["pick"] else 9
+        for lx, ly, anchor in ((cx + off, cy + 4, "start"), (cx - off, cy + 4, "end"),
+                               (cx - w / 2, cy - off - 4, "start"), (cx - w / 2, cy + off + 11, "start")):
+            x0 = lx - w if anchor == "end" else lx
+            box = (x0, ly - 11, x0 + w, ly + 3)
+            if x0 < 2 or box[2] > W - 2 or box[1] < mt - 6 or box[3] > H - mb:
+                continue
+            if any(not (box[2] < b[0] or box[0] > b[2] or box[3] < b[1] or box[1] > b[3]) for b in placed):
+                continue
+            if any(q is not p and box[0] - 6 < X(q["x"]) < box[2] + 6 and box[1] - 6 < Y(q["y"]) < box[3] + 6 for q in pts):
+                continue
+            placed.append(box)
+            o.append(f'<text class="ink halo" x="{lx:.1f}" y="{ly:.1f}" text-anchor="{anchor}" stroke-width="3" '
+                     f'paint-order="stroke" stroke-linejoin="round" font-weight="{600 if p["pick"] else 400}">{_esc(text)}</text>')
+            break
+    o.append("</svg>\n")
+    out.write_text("".join(o))
     return out
 
 
@@ -351,6 +438,16 @@ def _picks_md(rows: list[dict[str, Any]]) -> str:
     return "".join(out)
 
 
+def _scatter_md(out: Path, data_csv: str) -> str:
+    """An image link to the scatter SVG that write_data put beside the CSV, if it's there."""
+    svg = Path(data_csv).with_name(SCATTER_SVG)
+    if not (out.parent / svg).exists():
+        return ""
+    return (f"\n![Quality against speed: best LiveCodeBench against generation at 8k]({svg.as_posix()})\n\n"
+            "Up and to the right is better. Labeled models are the ones nothing beats on both, joined by the dashed "
+            "line; ★ marks the current picks. The [dashboard](dashboard/) has the same chart with hover details.\n")
+
+
 def write_markdown(rows: list[dict[str, Any]], out: Path, hardware: str,
                    compare: list[dict[str, Any]] | None = None, other: str = "",
                    overnight: tuple[str, ...] | list[str] = OVERNIGHT, notes: str = "",
@@ -407,6 +504,7 @@ def write_markdown(rows: list[dict[str, Any]], out: Path, hardware: str,
         overnight_cols.pop("backend")
     parts += [
         _picks_md(rows),
+        _scatter_md(out, data_csv),
         "\n## Overnight profile\n\n",
         terminal_text,
         "**LiveCodeBench** is an evenly spaced sample of 15 medium and 15 hard v6 problems (Jan–Apr 2025), "
