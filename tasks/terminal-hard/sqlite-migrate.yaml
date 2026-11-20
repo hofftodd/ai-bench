@@ -1,0 +1,119 @@
+name: sqlite-migrate
+difficulty: hard
+max_turns: 40
+instruction: |
+  /work/shop.db (SQLite) has one denormalized table:
+    orders(id INTEGER PRIMARY KEY, customer_name TEXT, customer_email TEXT, items_json TEXT,
+           total_cents INTEGER, created TEXT)
+  items_json is a JSON array of {"sku", "qty", "price_cents"} objects; a missing qty means 1.
+
+  Migrate the database in place to this schema, and drop the old table when done:
+    customers(id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL)
+    orders(id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL REFERENCES customers(id),
+           created TEXT NOT NULL, total_cents INTEGER NOT NULL)
+    order_items(order_id INTEGER NOT NULL REFERENCES orders(id), sku TEXT NOT NULL,
+                qty INTEGER NOT NULL, price_cents INTEGER NOT NULL)
+  Rules:
+  - One customer per email, compared after trimming spaces and lowercasing; store the email that way.
+  - A customer's name is the customer_name of their most recent order (latest `created`).
+  - Keep every order's id and created. Its total_cents must be the sum of qty * price_cents of its
+    items, even where the old stored total said otherwise.
+  - Write the ids of the orders whose old stored total disagreed with their items to
+    /work/mismatched.txt, one per line, in ascending order.
+setup: |
+  python3 - <<'PY'
+  import json, random, sqlite3
+  r = random.Random(7)
+  db = sqlite3.connect("/work/shop.db")
+  db.execute("CREATE TABLE orders(id INTEGER PRIMARY KEY, customer_name TEXT, customer_email TEXT, "
+             "items_json TEXT, total_cents INTEGER, created TEXT)")
+  people = [("Ann Lee", "ann@example.com"), ("Bo Chen", "bo@example.com"), ("Cy Diaz", "cy@example.com"),
+            ("Di Park", "di@example.com"), ("Ed Moss", "ed@example.com"), ("Flo Ruiz", "flo@example.com")]
+  exp_items, mism, latest = [], [], {}
+  for oid in range(1, 121):
+      name, email = r.choice(people)
+      if r.random() < 0.3: email = email.upper()
+      if r.random() < 0.3: email = "  " + email + " "
+      if r.random() < 0.2: name = name.split()[0] + " " + r.choice(["Q.", "X.", "J."]) + " " + name.split()[1]
+      created = f"2024-{r.randint(1,12):02d}-{r.randint(1,28):02d} {r.randint(0,23):02d}:{r.randint(0,59):02d}:{oid % 60:02d}"
+      items = []
+      for _ in range(r.randint(1, 4)):
+          it = {"sku": f"SKU-{r.randint(1,30):03d}", "price_cents": r.randint(99, 9999)}
+          if r.random() < 0.7: it["qty"] = r.randint(1, 5)
+          items.append(it)
+      true_total = sum(i.get("qty", 1) * i["price_cents"] for i in items)
+      stored = true_total
+      if r.random() < 0.12:
+          stored = true_total + r.choice([-100, 1, 250, -1]); mism.append(oid)
+      db.execute("INSERT INTO orders VALUES (?,?,?,?,?,?)", (oid, name, email, json.dumps(items), stored, created))
+      key = email.strip().lower()
+      if key not in latest or created > latest[key][0]: latest[key] = (created, name)
+      for i in items: exp_items.append((oid, i["sku"], i.get("qty", 1), i["price_cents"]))
+  db.commit()
+  open("/root/expected/mismatched", "w").write("".join(f"{i}\n" for i in mism))
+  rows = db.execute("SELECT id, customer_email, total_cents, created, items_json FROM orders").fetchall()
+  exp = {"customers": sorted([k, v[1]] for k, v in latest.items()),
+         "orders": sorted([o, e.strip().lower(), c, sum(i.get("qty", 1) * i["price_cents"] for i in json.loads(j))]
+                          for o, e, t, c, j in rows),
+         "items": sorted([list(x) for x in exp_items])}
+  json.dump(exp, open("/root/expected/db.json", "w"))
+  PY
+  chown agent:agent /work/shop.db
+verify: |
+  python3 - <<'PY'
+  import json, sqlite3, sys
+  def fail(m): print(m); sys.exit(1)
+  exp = json.load(open("/root/expected/db.json"))
+  db = sqlite3.connect("/work/shop.db")
+  tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+  if tables != {"customers", "orders", "order_items"}: fail(f"tables are {sorted(tables)}")
+  cols = lambda t: [r[1] for r in db.execute(f"PRAGMA table_info({t})")]
+  if cols("orders") != ["id", "customer_id", "created", "total_cents"]: fail(f"orders columns {cols('orders')}")
+  if sorted(cols("customers")) != ["email", "id", "name"]: fail("customers columns wrong")
+  if sorted(cols("order_items")) != ["order_id", "price_cents", "qty", "sku"]: fail("order_items columns wrong")
+  try:
+      db.execute("INSERT INTO customers(email, name) SELECT email, 'dup' FROM customers LIMIT 1"); fail("email is not UNIQUE")
+  except sqlite3.IntegrityError: db.rollback()
+  got_c = sorted([e, n] for e, n in db.execute("SELECT email, name FROM customers"))
+  if got_c != exp["customers"]: fail(f"customers differ: {got_c}")
+  got_o = sorted([o, e, c, t] for o, e, c, t in db.execute(
+      "SELECT o.id, c.email, o.created, o.total_cents FROM orders o JOIN customers c ON c.id = o.customer_id"))
+  if got_o != exp["orders"]: fail("orders (ids, customers, created or totals) differ")
+  got_i = sorted([list(r) for r in db.execute("SELECT order_id, sku, qty, price_cents FROM order_items")])
+  if got_i != exp["items"]: fail("order_items differ")
+  try:
+      if open("/work/mismatched.txt").read().split() != open("/root/expected/mismatched").read().split():
+          fail("mismatched.txt is wrong")
+  except FileNotFoundError: fail("no /work/mismatched.txt")
+  print("ok")
+  PY
+solution: |
+  python3 - <<'PY'
+  import json, sqlite3
+  db = sqlite3.connect("/work/shop.db")
+  old = db.execute("SELECT id, customer_name, customer_email, items_json, total_cents, created FROM orders").fetchall()
+  db.executescript("""
+  ALTER TABLE orders RENAME TO orders_old;
+  CREATE TABLE customers(id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL);
+  CREATE TABLE orders(id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL REFERENCES customers(id),
+                      created TEXT NOT NULL, total_cents INTEGER NOT NULL);
+  CREATE TABLE order_items(order_id INTEGER NOT NULL REFERENCES orders(id), sku TEXT NOT NULL,
+                           qty INTEGER NOT NULL, price_cents INTEGER NOT NULL);
+  """)
+  latest = {}
+  for oid, name, email, items, total, created in old:
+      k = email.strip().lower()
+      if k not in latest or created > latest[k][0]: latest[k] = (created, name)
+  ids = {}
+  for k, (_, name) in sorted(latest.items()):
+      ids[k] = db.execute("INSERT INTO customers(email, name) VALUES (?,?)", (k, name)).lastrowid
+  mism = []
+  for oid, name, email, items, total, created in old:
+      its = json.loads(items)
+      t = sum(i.get("qty", 1) * i["price_cents"] for i in its)
+      if t != total: mism.append(oid)
+      db.execute("INSERT INTO orders VALUES (?,?,?,?)", (oid, ids[email.strip().lower()], created, t))
+      for i in its: db.execute("INSERT INTO order_items VALUES (?,?,?,?)", (oid, i["sku"], i.get("qty", 1), i["price_cents"]))
+  db.execute("DROP TABLE orders_old"); db.commit()
+  open("/work/mismatched.txt", "w").write("".join(f"{i}\n" for i in sorted(mism)))
+  PY

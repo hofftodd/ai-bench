@@ -1,0 +1,191 @@
+name: lru-ttl-cache
+difficulty: hard
+max_turns: 40
+instruction: |
+  /work/cache/ttlcache.py implements TTLCache, a least-recently-used cache whose entries also expire.
+  Its README.md is the specification. The tests in /work/cache/tests fail. Fix ttlcache.py so it meets
+  the specification in full; the check also runs further tests of its own against the README. Do not
+  change the README or the tests. Run the tests with `cd /work/cache && python3 -m unittest -q`.
+setup: |
+  mkdir -p /work/cache/tests && cd /work/cache
+  cat > README.md <<'MD'
+  # TTLCache
+
+  `TTLCache(capacity, ttl, clock=time.monotonic)` maps keys to values.
+
+  - `capacity` (>= 1) is the most entries it holds. `ttl` (seconds, > 0) is how long an entry lives
+    after it was last **set**; reading it doesn't extend its life. `clock()` returns the current time.
+  - `get(key, default=None)` returns the value, or `default` if the key is missing or expired. A
+    successful get makes the entry the most recently used. Expired entries are removed when found.
+  - `set(key, value)` stores the value, restarting the entry's ttl and making it the most recently
+    used. If that leaves more than `capacity` live entries, expired entries are dropped first, then
+    the least recently used ones, until it fits.
+  - `len(cache)` is the number of entries that have not expired.
+  - `keys()` returns the live keys, least recently used first. It does not change the order.
+  - `pop(key, default=None)` removes the entry and returns its value, or `default` if it is missing
+    or expired.
+  MD
+  cat > ttlcache.py <<'PY'
+  import time
+  from collections import OrderedDict
+
+
+  class TTLCache:
+      def __init__(self, capacity, ttl, clock=time.monotonic):
+          self.capacity, self.ttl, self.clock = capacity, ttl, clock
+          self.data = OrderedDict()   # key -> (value, expires_at)
+
+      def _expired(self, key):
+          return self.data[key][1] < self.clock()
+
+      def get(self, key, default=None):
+          if key not in self.data:
+              return default
+          if self._expired(key):
+              return default
+          value, exp = self.data[key]
+          self.data[key] = (value, self.clock() + self.ttl)
+          return value
+
+      def set(self, key, value):
+          self.data[key] = (value, self.clock() + self.ttl)
+          while len(self.data) > self.capacity:
+              self.data.popitem(last=False)
+
+      def __len__(self):
+          return len(self.data)
+
+      def keys(self):
+          return list(self.data)
+
+      def pop(self, key, default=None):
+          if key in self.data:
+              return self.data.pop(key)[0]
+          return default
+  PY
+  cat > tests/__init__.py </dev/null
+  cat > tests/test_basic.py <<'PY'
+  import unittest
+  from ttlcache import TTLCache
+
+
+  class Clock:
+      def __init__(self): self.t = 0.0
+      def __call__(self): return self.t
+
+
+  class TestBasic(unittest.TestCase):
+      def test_lru_order_after_get(self):
+          c = TTLCache(2, 100, Clock())
+          c.set("a", 1); c.set("b", 2); c.get("a"); c.set("c", 3)
+          self.assertEqual(c.keys(), ["a", "c"])
+
+      def test_expiry(self):
+          clk = Clock(); c = TTLCache(3, 10, clk)
+          c.set("a", 1); clk.t = 10
+          self.assertIsNone(c.get("a"))
+          self.assertEqual(len(c), 0)
+  PY
+  cat > /root/expected/test_hidden.py <<'PY'
+  import unittest
+  from ttlcache import TTLCache
+
+
+  class Clock:
+      def __init__(self): self.t = 0.0
+      def __call__(self): return self.t
+
+
+  class TestHidden(unittest.TestCase):
+      def test_get_does_not_extend_ttl(self):
+          clk = Clock(); c = TTLCache(3, 10, clk)
+          c.set("a", 1); clk.t = 6; self.assertEqual(c.get("a"), 1)
+          clk.t = 10; self.assertIsNone(c.get("a"))
+
+      def test_set_restarts_ttl_and_order(self):
+          clk = Clock(); c = TTLCache(2, 10, clk)
+          c.set("a", 1); c.set("b", 2); clk.t = 5; c.set("a", 9)
+          self.assertEqual(c.keys(), ["b", "a"]); clk.t = 12
+          self.assertEqual(c.get("a"), 9); self.assertIsNone(c.get("b"))
+
+      def test_expired_dropped_before_lru(self):
+          clk = Clock(); c = TTLCache(2, 10, clk)
+          c.set("old", 1); clk.t = 5; c.set("live", 2); c.get("old"); clk.t = 11
+          c.set("new", 3)
+          self.assertEqual(c.keys(), ["live", "new"])
+
+      def test_len_and_keys_skip_expired_without_reordering(self):
+          clk = Clock(); c = TTLCache(5, 10, clk)
+          c.set("a", 1); clk.t = 3; c.set("b", 2); c.set("c", 3); c.get("b"); clk.t = 11
+          self.assertEqual(len(c), 2); self.assertEqual(c.keys(), ["c", "b"])
+          self.assertEqual(c.keys(), ["c", "b"])
+
+      def test_pop_expired_and_missing(self):
+          clk = Clock(); c = TTLCache(2, 10, clk)
+          c.set("a", 1); clk.t = 10
+          self.assertEqual(c.pop("a", "gone"), "gone"); self.assertEqual(c.pop("zz", 7), 7)
+          c.set("b", 2); self.assertEqual(c.pop("b"), 2); self.assertEqual(len(c), 0)
+
+      def test_capacity_one(self):
+          c = TTLCache(1, 10, Clock()); c.set("a", 1); c.set("b", 2)
+          self.assertIsNone(c.get("a")); self.assertEqual(c.get("b"), 2)
+  PY
+  sha256sum README.md tests/*.py > /root/expected/untouched.sha
+  chown -R agent:agent /work/cache
+verify: |
+  cd /work/cache
+  sha256sum -c --quiet /root/expected/untouched.sha || { echo "README or tests were changed"; exit 1; }
+  cp /root/expected/test_hidden.py tests/test_hidden.py
+  python3 -m unittest -q 2>&1 | tail -15; rc=${PIPESTATUS[0]}
+  rm -f tests/test_hidden.py
+  exit $rc
+solution: |
+  cat > /work/cache/ttlcache.py <<'PY'
+  import time
+  from collections import OrderedDict
+
+
+  class TTLCache:
+      def __init__(self, capacity, ttl, clock=time.monotonic):
+          self.capacity, self.ttl, self.clock = capacity, ttl, clock
+          self.data = OrderedDict()   # key -> (value, expires_at), least recently used first
+
+      def _live(self, key, now):
+          return self.data[key][1] > now
+
+      def _purge(self):
+          now = self.clock()
+          for k in [k for k in self.data if not self._live(k, now)]:
+              del self.data[k]
+
+      def get(self, key, default=None):
+          if key not in self.data:
+              return default
+          if not self._live(key, self.clock()):
+              del self.data[key]
+              return default
+          self.data.move_to_end(key)
+          return self.data[key][0]
+
+      def set(self, key, value):
+          self.data[key] = (value, self.clock() + self.ttl)
+          self.data.move_to_end(key)
+          if len(self.data) > self.capacity:
+              self._purge()
+          while len(self.data) > self.capacity:
+              self.data.popitem(last=False)
+
+      def __len__(self):
+          now = self.clock()
+          return sum(1 for k in self.data if self._live(k, now))
+
+      def keys(self):
+          now = self.clock()
+          return [k for k in self.data if self._live(k, now)]
+
+      def pop(self, key, default=None):
+          if key not in self.data:
+              return default
+          value, exp = self.data.pop(key)
+          return value if exp > self.clock() else default
+  PY

@@ -310,6 +310,14 @@ suites:
     type: terminal
     tasks: [log-error-report, kill-rogue, git-restore-file, csv-summary, fix-c-build, merge-conflict]
     concurrency: 3
+  terminal-hard:              # 6 harder multi-step tasks (tasks/terminal-hard) x 3, for when terminal-x3 saturates
+    type: terminal
+    tasks_dir: tasks/terminal-hard
+    builtin: false
+    repeats: 3
+    concurrency: 4
+    max_turns: 40
+    max_tokens: 32768
   terminal-x3:                # all 18 tasks x 3 episodes each: steadier pass rates (54 episodes)
     type: terminal
     repeats: 3

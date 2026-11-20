@@ -1,0 +1,86 @@
+name: log-forensics-tz
+difficulty: hard
+max_turns: 40
+instruction: |
+  /work/logs holds web access logs from three servers in different time zones, rotated:
+  access.log, access.log.1, and older ones gzipped (access.log.2.gz, ...), one directory per server.
+  Each line looks like
+    203.0.113.9 - - [10/Mar/2024:14:05:31 +0100] "GET /api/x HTTP/1.1" 503 512 "-" "curl/8.4"
+  with the server's local time and its UTC offset. Some lines are corrupted and must be skipped.
+
+  For each UTC hour from 2024-03-10 08:00 up to (not including) 2024-03-10 14:00, count the distinct
+  client IPs that received at least one 5xx response, across all three servers. Ignore requests whose
+  user agent contains "kube-probe" (health checks). Write /work/report.csv with the header
+  `hour_utc,ips` and one row per hour in order, hour formatted like `2024-03-10T08:00Z`, including hours
+  with 0.
+setup: |
+  python3 - <<'PY'
+  import gzip, os, random
+  from datetime import datetime, timedelta, timezone
+  r = random.Random(11)
+  servers = {"web-berlin": 1, "web-nyc": -5, "web-tokyo": 9}
+  ips = [f"198.51.100.{i}" for i in range(1, 40)] + [f"203.0.113.{i}" for i in range(1, 25)]
+  start = datetime(2024, 3, 10, 5, 0, tzinfo=timezone.utc)
+  hits = {}
+  for srv, off in servers.items():
+      tz = timezone(timedelta(hours=off))
+      lines = []
+      t = start
+      while t < start + timedelta(hours=12):
+          t += timedelta(seconds=r.randint(5, 90))
+          ip = r.choice(ips)
+          probe = r.random() < 0.15
+          ua = "kube-probe/1.29" if probe else r.choice(["curl/8.4", "Mozilla/5.0 (X11)", "python-requests/2.31"])
+          status = r.choice([200] * 12 + [301, 404, 500, 502, 503, 504])
+          local = t.astimezone(tz)
+          stamp = local.strftime("%d/%b/%Y:%H:%M:%S ") + local.strftime("%z")
+          line = f'{ip} - - [{stamp}] "GET /api/{r.randint(1,9)} HTTP/1.1" {status} {r.randint(100,5000)} "-" "{ua}"'
+          if r.random() < 0.03:
+              line = line[: r.randint(5, 30)] + r.choice(['', '\\x00\\x00', ' ###'])   # cut before the status
+          elif status >= 500 and not probe:
+              h = t.replace(minute=0, second=0)
+              if datetime(2024, 3, 10, 8, tzinfo=timezone.utc) <= h < datetime(2024, 3, 10, 14, tzinfo=timezone.utc):
+                  hits.setdefault(h, set()).add(ip)
+          lines.append(line)
+      d = f"/work/logs/{srv}"; os.makedirs(d, exist_ok=True)
+      chunks = [lines[k * len(lines) // 4:(k + 1) * len(lines) // 4] for k in range(4)]
+      names = ["access.log.3.gz", "access.log.2.gz", "access.log.1", "access.log"]
+      for name, chunk in zip(names, chunks):
+          data = ("\n".join(chunk) + "\n").encode()
+          if name.endswith(".gz"):
+              with gzip.open(f"{d}/{name}", "wb") as f: f.write(data)
+          else:
+              open(f"{d}/{name}", "wb").write(data)
+  rows = ["hour_utc,ips"]
+  for k in range(6):
+      h = datetime(2024, 3, 10, 8 + k, tzinfo=timezone.utc)
+      rows.append(f"{h:%Y-%m-%dT%H:00Z},{len(hits.get(h, ()))}")
+  open("/root/expected/report.csv", "w").write("\n".join(rows) + "\n")
+  PY
+  chown -R agent:agent /work/logs
+verify: |
+  [ -f /work/report.csv ] || { echo "no /work/report.csv"; exit 1; }
+  python3 /root/check.py lines /work/report.csv /root/expected/report.csv
+solution: |
+  python3 - <<'PY'
+  import glob, gzip, re
+  from datetime import datetime, timezone
+  pat = re.compile(r'^(\S+) \S+ \S+ \[([^\]]+)\] "[^"]*" (\d{3}) \S+ "[^"]*" "([^"]*)"$')
+  hours = {}
+  for path in glob.glob("/work/logs/*/access.log*"):
+      op = gzip.open if path.endswith(".gz") else open
+      with op(path, "rt") as f:
+          for line in f:
+              m = pat.match(line.rstrip("\n"))
+              if not m: continue
+              ip, ts, status, ua = m.groups()
+              if not status.startswith("5") or "kube-probe" in ua: continue
+              try: t = datetime.strptime(ts, "%d/%b/%Y:%H:%M:%S %z").astimezone(timezone.utc)
+              except ValueError: continue
+              hours.setdefault(t.replace(minute=0, second=0), set()).add(ip)
+  out = ["hour_utc,ips"]
+  for k in range(6):
+      h = datetime(2024, 3, 10, 8 + k, tzinfo=timezone.utc)
+      out.append(f"{h:%Y-%m-%dT%H:00Z},{len(hours.get(h, ()))}")
+  open("/work/report.csv", "w").write("\n".join(out) + "\n")
+  PY

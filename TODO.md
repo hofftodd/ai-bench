@@ -32,9 +32,9 @@ Quality scores don't depend on the backend (same GGUF, same sampling), so only s
 
 - [x] **Finish DeepSeek V4 Flash** (below). `quick`, terminal-x3, LiveCodeBench at 32k (60.0%, re-run after the 2026-10-28 power outage) and at 64k (80.0%, 27 h, server context raised to 200,704 for 3 × 64k) are done. *Done 2026-10-30; see ANALYSIS.md.*
 - [x] **A medium-effort alias in llama-swap.** `qwen3.8-27b-medium` is a llama-swap model now (llama-config `<new>=<base>` variant in models.conf, `--chat-template-kwargs`).
-- [ ] **ThinkingCap at `medium`** on terminal-x3 (~20 min).
+- [x] **ThinkingCap at `medium`** on terminal-x3 (~20 min). *Done 2026-11-20 (`thinkingcap-qwen3.8-27b-medium`): 92.6% in 9.1 min, no bad calls, against 98.1% at its default xhigh. The same 92.6% as qwen3.8-27b-medium: medium trades a few tool-use failures for speed on both.*
 - [x] **ThinkingCap at the base's UD-Q4_K_XL**, to tell its fine-tune apart from its quant. No UD-Q4_K_XL of ThinkingCap exists, so it's bottlecap's f16 quantized locally with the base file's exact per-tensor types and Unsloth's imatrix (model `thinkingcap-qwen3.8-27b-udq4kxl`). It runs `overnight`, `livecodebench-64k` and `speed-quick` (~8 h), queued 2026-10-29 behind the DeepSeek 64k run (`logs/thinkingcap-udq4kxl.sh`). *Done 2026-10-31:* 80% at 64k again, so the gain is the fine-tune's (ANALYSIS.md).
-- [ ] **Harder terminal tasks.** terminal-x3 is saturated (100 / 100 / 98.1).
+- [x] **Harder terminal tasks.** terminal-x3 is saturated (100 / 100 / 98.1). *Done 2026-11-20: suite `terminal-hard` (both configs), 6 multi-step tasks in `tasks/terminal-hard/` x 3 runs, 40 turns: git-purge-secret (rewrite history across a branch and an annotated tag, then drop refs/original), sqlite-migrate (normalize with email dedupe, recomputed totals, a mismatch report), perf-interval-count (O(n^2) to fast with byte-identical output, checked on unseen data under a 10 s limit), make-deps (a Makefile that's right under `make -j8` and rebuilds on nested header changes), log-forensics-tz (rotated gzipped logs, mixed UTC offsets, corrupt lines, health checks excluded), lru-ttl-cache (fix against hidden tests from the README). All pass `aibench selftest -s terminal-hard`. A separate suite, so terminal-x3 stays comparable.*
 
 ### DeepSeek V4 Flash
 

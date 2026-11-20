@@ -1,0 +1,124 @@
+name: make-deps
+difficulty: hard
+max_turns: 40
+instruction: |
+  /work/proj is a small C program built with make. Its Makefile has problems: a parallel build
+  (`make -j8`) sometimes fails or links a stale program, and editing a header (including headers that
+  are only included by other headers) doesn't rebuild the code that uses it.
+
+  Fix /work/proj/Makefile, and only the Makefile, so that:
+  - `make -j8` from a clean tree always builds ./app correctly;
+  - after any header in the project changes, `make -j8` rebuilds exactly what's needed, so ./app
+    reflects the change;
+  - `make clean` removes ./app and every file the build generated, leaving only the sources and
+    the Makefile.
+setup: |
+  mkdir -p /work/proj/src /work/proj/include && cd /work/proj
+  cat > include/config.h <<'H'
+  #ifndef CONFIG_H
+  #define CONFIG_H
+  #define SCALE 3
+  #endif
+  H
+  cat > include/units.h <<'H'
+  #ifndef UNITS_H
+  #define UNITS_H
+  #include "config.h"
+  #define TO_UNITS(x) ((x) * SCALE)
+  #endif
+  H
+  cat > include/calc.h <<'H'
+  #ifndef CALC_H
+  #define CALC_H
+  int area(int w, int h);
+  int perimeter(int w, int h);
+  #endif
+  H
+  cat > include/fmt.h <<'H'
+  #ifndef FMT_H
+  #define FMT_H
+  #define LABEL "result"
+  void show(const char *what, int v);
+  #endif
+  H
+  cat > src/area.c <<'C'
+  #include "calc.h"
+  #include "units.h"
+  int area(int w, int h) { return TO_UNITS(w) * TO_UNITS(h); }
+  C
+  cat > src/perimeter.c <<'C'
+  #include "calc.h"
+  #include "units.h"
+  int perimeter(int w, int h) { return 2 * (TO_UNITS(w) + TO_UNITS(h)); }
+  C
+  cat > src/fmt.c <<'C'
+  #include <stdio.h>
+  #include "fmt.h"
+  void show(const char *what, int v) { printf("%s %s=%d\n", LABEL, what, v); }
+  C
+  cat > src/main.c <<'C'
+  #include "calc.h"
+  #include "fmt.h"
+  int main(void) { show("area", area(2, 5)); show("perimeter", perimeter(2, 5)); return 0; }
+  C
+  cat > Makefile <<'M'
+  CC = gcc
+  CFLAGS = -O2 -Wall -Iinclude
+
+  app: main.o area.o perimeter.o fmt.o libcalc.a
+  	$(CC) -o app main.o fmt.o libcalc.a
+
+  libcalc.a:
+  	ar rcs libcalc.a area.o perimeter.o
+
+  %.o: src/%.c
+  	$(CC) $(CFLAGS) -c $< -o $@
+
+  clean:
+  	rm -f app *.o
+  M
+  find /work/proj -type f | sort | sed 's#^/work/proj/##' | grep -v '^Makefile$' > /root/expected/sources
+  chown -R agent:agent /work/proj
+verify: |
+  set -e
+  rm -rf /tmp/p && cp -a /work/proj /tmp/p && cd /tmp/p && chown -R root:root .
+  for i in 1 2 3; do
+    make -s clean >/dev/null 2>&1 || true
+    make -s -j8 >/tmp/build.log 2>&1 || { echo "make -j8 failed on a clean tree:"; tail -5 /tmp/build.log; exit 1; }
+    [ "$(./app)" = "$(printf 'result area=90\nresult perimeter=42')" ] || { echo "wrong output after a clean build: $(./app | tr '\n' ' ')"; exit 1; }
+  done
+  sleep 1; sed -i 's/SCALE 3/SCALE 5/' include/config.h
+  make -s -j8 >/dev/null 2>&1 || { echo "rebuild after editing config.h failed"; exit 1; }
+  [ "$(./app)" = "$(printf 'result area=250\nresult perimeter=70')" ] || { echo "config.h change not picked up: $(./app | tr '\n' ' ')"; exit 1; }
+  sleep 1; sed -i 's/"result"/"value"/' include/fmt.h
+  make -s -j8 >/dev/null 2>&1 || { echo "rebuild after editing fmt.h failed"; exit 1; }
+  [ "$(./app)" = "$(printf 'value area=250\nvalue perimeter=70')" ] || { echo "fmt.h change not picked up"; exit 1; }
+  sleep 1; touch include/fmt.h
+  out=$(make -j8 -n 2>/dev/null)
+  echo "$out" | grep -q 'src/area.c' && { echo "touching fmt.h rebuilds area.c, which doesn't use it"; exit 1; }
+  make -s clean >/dev/null 2>&1
+  left=$(find . -type f | sort | sed 's#^\./##' | grep -v '^Makefile$')
+  [ "$left" = "$(cat /root/expected/sources)" ] || { echo "make clean leaves generated files:"; echo "$left" | grep -vxF -f /root/expected/sources | head; exit 1; }
+  echo ok
+solution: |
+  cat > /work/proj/Makefile <<'M'
+  CC = gcc
+  CFLAGS = -O2 -Wall -Iinclude
+  DEPFLAGS = -MMD -MP
+
+  app: main.o fmt.o libcalc.a
+  	$(CC) -o $@ main.o fmt.o libcalc.a
+
+  libcalc.a: area.o perimeter.o
+  	ar rcs $@ $^
+
+  %.o: src/%.c
+  	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+  -include $(wildcard *.d)
+
+  clean:
+  	rm -f app *.o *.d libcalc.a
+
+  .PHONY: clean
+  M
