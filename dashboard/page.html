@@ -182,7 +182,7 @@
   <section class="rb-card">
     <div class="rb-card-head"><div>
       <h2>Overnight results</h2>
-      <p class="rb-note">Click a column to sort. Bold marks each column's best. The small range after each LiveCodeBench score is its 95% interval: with 30 problems one problem is 3.3 points, so scores whose ranges overlap widely are a tie. "Cut off" counts LiveCodeBench answers that hit the token budget, which score as failures. LCB-60 doubles the sample (30 medium + 30 hard, containing the 30) for the closest comparisons. terminal-x3 uses the re-run of the fixed backup-rotation task where one exists. "Quant" is the GGUF quantization; UD- marks Unsloth Dynamic quants.</p>
+      <p class="rb-note">Click a column to sort. Bold marks each column's best. The small range after each LiveCodeBench score is its 95% interval: with 30 problems one problem is 3.3 points, so scores whose ranges overlap widely are a tie. "Cut off" counts LiveCodeBench answers that hit the token budget, which score as failures. LCB-60 doubles the sample (30 medium + 30 hard, containing the 30) for the closest comparisons. terminal-x3 uses the re-run of the fixed backup-rotation task where one exists. terminal-hard is 6 harder multi-step tasks, three runs each, for models that max out terminal-x3. "Quant" is the GGUF quantization; UD- marks Unsloth Dynamic quants.</p>
     </div></div>
     <div class="rb-tablewrap"><table id="table-overnight"></table></div>
   </section>
@@ -601,6 +601,8 @@
     { key: 'terminal_x3_pass_pct', label: 'pass %', group: 'terminal-x3', better: 'high', pct: true },
     { key: 'terminal_x3_orig_pct', label: 'as run %', group: 'terminal-x3' },
     { key: 'terminal_x3_wall_min', label: 'min', group: 'terminal-x3', better: 'low' },
+    { key: 'terminal_hard_pass_pct', label: 'pass %', group: 'terminal-hard', better: 'high', pct: true },
+    { key: 'terminal_hard_wall_min', label: 'min', group: 'terminal-hard', better: 'low' },
   ];
   const QUICK = [
     { key: 'model', label: 'Model', left: true, always: true },
@@ -662,6 +664,7 @@
       tipLines: (r) => [
         { text: `${show(r.backend)} · ${show(r.quant)}` },
         { text: `${pct(n(r.terminal_x3_pass_pct))} of ${show(r.terminal_x3_episodes)} episodes, ${show(r.terminal_x3_wall_min)} min` },
+        ...(n(r.terminal_hard_pass_pct) != null ? [{ text: `terminal-hard ${pct(n(r.terminal_hard_pass_pct))}, ${show(r.terminal_hard_wall_min)} min` }] : []),
       ],
     });
 
