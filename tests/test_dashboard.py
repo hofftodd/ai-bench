@@ -153,3 +153,19 @@ def test_apply_picks_marks_rows_and_reports_missing():
     assert missing == ["zz"]
     assert rows[1] | {} == {"model": "b", "pick_order": 1, "pick_role": "Hard problems", "pick_note": "best"}
     assert rows[0]["pick_role"] == ""
+
+
+def test_scatter_svg_and_results_link(tmp_path):
+    rows = [{"model": "fast", "lcb_pass_pct": "60", "lcb64k_pass_pct": "", "tg8k_tok_s": "200", "pick_order": ""},
+            {"model": "good", "lcb_pass_pct": "70", "lcb64k_pass_pct": "90", "tg8k_tok_s": "50", "pick_order": 1},
+            {"model": "slow-bad", "lcb_pass_pct": "50", "lcb64k_pass_pct": "", "tg8k_tok_s": "40", "pick_order": ""},
+            {"model": "no-speed", "lcb_pass_pct": "99", "lcb64k_pass_pct": "", "tg8k_tok_s": "", "pick_order": ""}]
+    svg = dashboard.write_scatter_svg(rows, tmp_path / "data" / "quality-speed.svg") if (tmp_path / "data").mkdir() is None else None
+    text = svg.read_text()
+    assert text.startswith("<svg") and "★ good" in text and ">fast<" in text
+    assert "no-speed" not in text and ">slow-bad<" not in text      # off the front, not a pick: dot only
+    assert "slow-bad: 50%" in text                                   # ...but it has a hover title
+    md = dashboard._scatter_md(tmp_path / "RESULTS.md", "data/models.csv")
+    assert "](data/quality-speed.svg)" in md
+    assert dashboard.write_scatter_svg([rows[3]], tmp_path / "data" / "quality-speed.svg") is None
+    assert not (tmp_path / "data" / "quality-speed.svg").exists()
