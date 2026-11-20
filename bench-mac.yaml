@@ -427,6 +427,32 @@ models:
     params: {temperature: 0.0, extra_body: {thinking_token_budget: 24576}}
     args: [--ple-memory, "off"]
 
+  # oMLX 0.8.0 (2026-11-20). Inkling 2 Small (Thinking Machines, 594B / 17B active) as Hygaard's oQe 3.07 bpw
+  # build with MTP (~210 GiB loaded), which needs the uploader's inkling2-affine-packed-width.patch applied to
+  # oMLX (done by hand in the Homebrew install; a brew upgrade undoes it). No published sampling: Inkling-Small's.
+  # MTP is off for it in ~/.omlx/model_settings.json (set by queues/mac-queue21.sh): the uploader tested MTP with
+  # one request only, and these runs send 3-4 at once.
+  omlx-inkling-2-small:
+    backend: omlx
+    id: inkling-2-small-oq3
+    gguf: ~/models/omlx
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95}
+
+  # DeepSeek V4.1 Flash (1017), Jundot's oQ2.5h (552B language model + 197B Engram n-gram tables + MTP; 319 GiB on
+  # disk). The Engram tables stay on the SSD (deepseek_v41_engram_ssd_offload, set by queues/mac-queue21.sh), so
+  # about 205 GiB is resident and it runs alone. ds4-q4's sampling. -budget adds the 24,576-token thinking budget
+  # that lifted Flash-Next, with sampling kept (DeepSeek wasn't tried greedy).
+  omlx-deepseek-v4.1-flash: &omlx-ds41
+    backend: omlx
+    id: deepseek-v4.1-flash-oq25h
+    gguf: ~/models/omlx
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 1.0}
+  omlx-deepseek-v4.1-flash-budget:
+    <<: *omlx-ds41
+    params: {temperature: 1.0, top_p: 1.0, extra_body: {thinking_budget: 24576}}
+
 suites:                     # copied from bench.yaml so the settings match exactly
   speed-quick:
     type: throughput
