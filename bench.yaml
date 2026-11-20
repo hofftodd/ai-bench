@@ -328,6 +328,17 @@ suites:
     release: v6
     sample: {medium: 15, hard: 15}   # 30 evenly spaced problems; drop `sample` for all 175
     concurrency: 4
+  livecodebench-60:           # 30 medium + 30 hard, evenly spaced: contains the 30 above; for close calls
+    type: livecodebench
+    release: v6
+    sample: {medium: 30, hard: 30}
+    concurrency: 4
+  livecodebench-60-64k:
+    type: livecodebench
+    release: v6
+    sample: {medium: 30, hard: 30}
+    max_tokens_override: 65536
+    concurrency: 3
   lcb-easy-check:             # harness smoke test
     type: livecodebench
     sample: {easy: 8}
