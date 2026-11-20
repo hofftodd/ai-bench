@@ -356,7 +356,7 @@
     box.style.minHeight = '';
     if (!rows.length) { box.append(el('div', { class: 'rb-empty', text: 'No runs yet on this machine.' })); return; }
     const W = Math.max(280, box.clientWidth || 600);
-    const svg = d3.select(box).append('svg').attr('width', '100%');
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('role', 'img').attr('aria-label', opts.label || 'Bar chart by model');
     const measure = measurer(svg);
     const maxName = Math.min(W * 0.45, d3.max(rows, (r) => measure((isPick(r) ? '★ ' : '') + r.model, 'rb-tick rb-name is-pick')));
     const left = maxName + 12;
@@ -413,7 +413,8 @@
     const W = Math.max(300, box.clientWidth || 700);
     const H = Math.round(Math.min(420, Math.max(260, W * 0.42)));
     const m = { top: 26, right: 16, bottom: 38, left: 44 };
-    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H)
+      .attr('role', 'img').attr('aria-label', 'Best LiveCodeBench score against generation speed at 8k, one dot per model');
     const measure = measurer(svg);
     const xMax = d3.max(pts, (r) => n(r.tg8k_tok_s)) * 1.08;
     const yMin = Math.max(0, Math.floor((d3.min(pts, (r) => r.lcb_best) - 8) / 10) * 10);
@@ -490,6 +491,8 @@
   function table(id, rows, cols, sortKey, groups) {
     const t = $(id);
     t.textContent = '';
+    t.setAttribute('data-source', machine);
+    t.setAttribute('data-row-key', 'model');
     const s = sorts[sortKey];
     const present = cols.filter((c) => c.always || rows.some((r) => r[c.key] !== '' && r[c.key] != null));
     const thead = el('thead');
@@ -507,7 +510,7 @@
     }
     const hr = el('tr');
     for (const c of present) {
-      const th = el('th', { class: c.left ? 'l' : '', scope: 'col' });
+      const th = el('th', { class: c.left ? 'l' : '', scope: 'col', 'data-field': c.key });
       if (s.key === c.key) th.setAttribute('aria-sort', s.dir < 0 ? 'descending' : 'ascending');
       const b = el('button', { type: 'button', text: c.label });
       b.addEventListener('click', () => {
@@ -610,6 +613,7 @@
     window.dispatchEvent(new CustomEvent('rb-machine', { detail: M }));
     const d = dash.data(M.id);
     const boxes = ['chart-scatter', 'chart-lcb', 'chart-term', 'chart-speed'].map($);
+    for (const b of [...boxes, $('picks')]) b.setAttribute('data-source', M.id);
     if (d.status === 'loading') { boxes.forEach((b) => { b.textContent = ''; }); return; }
     if (d.status !== 'ok') { boxes.forEach((b) => failLine(b)); return; }
     const rows = prep(d.data);

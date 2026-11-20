@@ -7,7 +7,7 @@ aibench measures how well local LLMs work on this machine, a Radeon AI PRO R9700
 
 Every result also records peak VRAM, average GPU power and energy used, plus the exact server build and command line, so runs can be compared later.
 
-Results go to `results/` as JSON. Read them in the terminal (`aibench report`) or on the [dashboard](#the-dashboard). **The latest results are in [RESULTS.md](RESULTS.md).**
+Results go to `results/` as JSON. Read them in the terminal (`aibench report`) or on the [dashboard](#the-dashboard). **The latest results are on the live dashboard at [hofftodd.github.io/ai-bench](https://hofftodd.github.io/ai-bench/)** (both machines), and as Markdown in [RESULTS.md](RESULTS.md) (R9700) and [RESULTS-mac.md](RESULTS-mac.md) (Mac Studio).
 
 > **See also:** [RESULTS.md](RESULTS.md) has the latest numbers, [ANALYSIS.md](ANALYSIS.md) interprets them and recommends models for each role, the Mac Studio's runs are in [RESULTS-mac.md](RESULTS-mac.md) and [ANALYSIS-mac.md](ANALYSIS-mac.md) (config: `bench-mac.yaml`, so `uv run aibench -c bench-mac.yaml ...`), [RESULTS-compare.md](RESULTS-compare.md) and [ANALYSIS-compare.md](ANALYSIS-compare.md) compare the two machines, [ARCHITECTURE.md](ARCHITECTURE.md) explains how the code fits together, and [TODO.md](TODO.md) lists open work and known caveats.
 
@@ -91,7 +91,7 @@ The same command writes [RESULTS.md](RESULTS.md), the same charts and tables as 
 
 Any static file server works too, once the data has been built: `python3 -m http.server -d dashboard 8765`. Opening `index.html` straight from disk (`file://`) won't work, because the page loads its data with `fetch`. It has no external dependencies (d3 is vendored), so it works offline.
 
-A hosted copy is at [claude.ai/artifact/V73ppxH5G8hiHjJ6yiwdux](https://claude.ai/artifact/V73ppxH5G8hiHjJ6yiwdux). [ARCHITECTURE.md](ARCHITECTURE.md#dashboard) explains how the two copies share code and how to update the hosted one.
+It's published at **[hofftodd.github.io/ai-bench](https://hofftodd.github.io/ai-bench/)** by `.github/workflows/pages.yml`, which redeploys `dashboard/` whenever it changes on main, so merging new results updates it. `#mac` or `#r9700` at the end of the address opens one machine. Another hosted copy is at [claude.ai/artifact/V73ppxH5G8hiHjJ6yiwdux](https://claude.ai/artifact/V73ppxH5G8hiHjJ6yiwdux), updated by hand. [ARCHITECTURE.md](ARCHITECTURE.md#dashboard) explains how the two copies share code and how to update the hosted one.
 
 ---
 
