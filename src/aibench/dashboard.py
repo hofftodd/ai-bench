@@ -53,6 +53,8 @@ METRICS: dict[str, tuple[str | tuple[str, ...], str]] = {
     "lcb60_wall_min": ("livecodebench-60", "wall"),
     "lcb60_64k_pass_pct": ("livecodebench-60-64k", "pass@1"),
     "lcb60_64k_wall_min": ("livecodebench-60-64k", "wall"),
+    "terminal_hard_pass_pct": ("terminal-hard", "pass"),       # 6 harder tasks x 3 (tasks/terminal-hard)
+    "terminal_hard_wall_min": ("terminal-hard", "wall"),
 }
 DETAILS: dict[str, tuple[str, str]] = {
     "terminal_x3_episodes": ("terminal-x3", "episodes"),
@@ -542,7 +544,8 @@ def write_markdown(rows: list[dict[str, Any]], out: Path, hardware: str,
                       "lcb128k_truncated": "128k cut off", "terminal_x3_wall_min": "terminal-x3 min",
                       "lcb_wall_min": "LCB min", "lcb60_pass_pct": "LCB-60 %", "lcb60_truncated": "LCB-60 cut off",
                       "lcb60_wall_min": "LCB-60 min", "lcb60_64k_pass_pct": "LCB-60 64k %",
-                      "lcb60_64k_wall_min": "LCB-60 64k min"}
+                      "lcb60_64k_wall_min": "LCB-60 64k min", "terminal_hard_pass_pct": "terminal-hard %",
+                      "terminal_hard_wall_min": "terminal-hard min"}
     if len({r["backend"] for r in rows}) < 2:
         overnight_cols.pop("backend")
     parts += [
@@ -553,12 +556,15 @@ def write_markdown(rows: list[dict[str, Any]], out: Path, hardware: str,
         "**LiveCodeBench** is an evenly spaced sample of 15 medium and 15 hard v6 problems (Jan–Apr 2025), "
         "with a 32k-token budget; **LCB 64k** re-runs the same problems with 64k for models that ran out of room, "
         "and **LCB 128k** with 128k for models still cut off at 64k. **LCB-60** doubles the sample (30 medium + "
-        "30 hard, a superset of the 30) for the closest comparisons, at 32k and 64k.\n\n",
+        "30 hard, a superset of the 30) for the closest comparisons, at 32k and 64k."
+        + (" **terminal-hard** is 6 harder multi-step tasks, three runs each, for models that max out terminal-x3."
+           if has_terminal else "") + "\n\n",
         (_bar_chart("terminal-x3 pass rate (%)", "pass %", done, "terminal_x3_pass_pct", 100) + "\n") if has_terminal else "",
         _bar_chart("LiveCodeBench pass@1 (%)", "pass@1 %", done, "lcb_pass_pct", 100), "\n",
         _table(rows, _present(rows, overnight_cols),
                {"terminal_x3_pass_pct": True, "lcb_pass_pct": True, "lcb64k_pass_pct": True,
-                "lcb128k_pass_pct": True, "lcb60_pass_pct": True, "lcb60_64k_pass_pct": True}),
+                "lcb128k_pass_pct": True, "lcb60_pass_pct": True, "lcb60_64k_pass_pct": True,
+                "terminal_hard_pass_pct": True}),
         "\nThe small numbers under each LiveCodeBench score are its 95% interval (Wilson), from the run's own "
         "problem count. With 30 problems one problem is 3.3 points and an 80% score spans about 63–90%, so two models "
         "whose intervals overlap widely can't be ranked by these runs: read them as a tie. LCB-60's 60 problems "
