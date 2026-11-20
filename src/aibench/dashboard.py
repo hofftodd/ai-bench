@@ -57,7 +57,37 @@ METRICS: dict[str, tuple[str | tuple[str, ...], str]] = {
 DETAILS: dict[str, tuple[str, str]] = {
     "terminal_x3_episodes": ("terminal-x3", "episodes"),
     "lcb_problems": ("livecodebench", "problems"),
+    "lcb64k_problems": ("livecodebench-64k", "problems"),
+    "lcb128k_problems": ("livecodebench-128k", "problems"),
+    "lcb60_problems": ("livecodebench-60", "problems"),
+    "lcb60_64k_problems": ("livecodebench-60-64k", "problems"),
 }
+# Pass-rate column -> its sample size column, for the 95% intervals in RESULTS.md and the page.
+CI_N = {"lcb_pass_pct": "lcb_problems", "lcb64k_pass_pct": "lcb64k_problems", "lcb128k_pass_pct": "lcb128k_problems",
+        "lcb60_pass_pct": "lcb60_problems", "lcb60_64k_pass_pct": "lcb60_64k_problems"}
+
+
+def wilson(pct: float, n: int, z: float = 1.96) -> tuple[float, float]:
+    """95% Wilson score interval for a pass rate (in percent) over n problems, in percent.
+
+    It stays inside 0-100 and is honest near the ends, where a plain +/- interval isn't. With 30 problems an 80%
+    score spans about 63-90%, so two models a problem or two apart can't be told apart."""
+    p = pct / 100
+    d = 1 + z * z / n
+    c = (p + z * z / (2 * n)) / d
+    h = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / d
+    return max(0.0, (c - h) * 100), min(100.0, (c + h) * 100)
+
+
+def ci_text(row: dict[str, Any], col: str) -> str:
+    """'63–90' for a pass-rate cell with a known sample size, else ''."""
+    if col not in CI_N:
+        return ""
+    v, n = _num(row.get(col)), _num(row.get(CI_N.get(col, ""), ""))
+    if v is None or not n:
+        return ""
+    lo, hi = wilson(v, int(n))
+    return f"{lo:.0f}–{hi:.0f}"
 COLUMNS = ["model", "backend", "quant", "overnight_order", "overnight_status", *METRICS, "terminal_x3_orig_pct",
            *DETAILS]
 # The current recommendation for each role (`outputs.picks` in the config), so the page and RESULTS.md can lead with them.
@@ -302,17 +332,20 @@ def write_scatter_svg(rows: list[dict[str, Any]], out: Path) -> Path | None:
         a, b, sp = _num(r.get("lcb_pass_pct")), _num(r.get("lcb64k_pass_pct")), _num(r.get("tg8k_tok_s"))
         if sp is None or (a is None and b is None):
             continue
-        pts.append({"r": r, "x": sp, "y": max(v for v in (a, b) if v is not None),
+        col = "lcb64k_pass_pct" if a is None or (b is not None and b > a) else "lcb_pass_pct"
+        n = _num(r.get(CI_N[col]))
+        lo, hi = wilson(_num(r[col]), int(n)) if n else (None, None)
+        pts.append({"r": r, "x": sp, "y": _num(r[col]), "lo": lo, "hi": hi,
                     "pick": r.get("pick_order") not in ("", None)})
     if not pts:
         out.unlink(missing_ok=True)
         return None
-    W, H = 880, 440
-    ml, mr, mt, mb = 52, 24, 40, 46
+    W, H = 880, 460
+    ml, mr, mt, mb = 52, 24, 58, 46
     xmax = max(p["x"] for p in pts) * 1.08
     step = 50 if xmax > 150 else 25
     xmax = -(-xmax // step) * step
-    ymin = max(0, (min(p["y"] for p in pts) - 8) // 10 * 10)
+    ymin = max(0, (min(p["lo"] if p["lo"] is not None else p["y"] for p in pts) - 2) // 10 * 10)
     X = lambda v: ml + v / xmax * (W - ml - mr)
     Y = lambda v: H - mb - (v - ymin) / (100 - ymin) * (H - mt - mb)
     front = [p for p in pts if not any(q is not p and q["x"] >= p["x"] and q["y"] >= p["y"]
@@ -328,8 +361,8 @@ def write_scatter_svg(rows: list[dict[str, Any]], out: Path) -> Path | None:
          ".ring{stroke:#3987e5}.front{stroke:#3987e5}.halo{stroke:#262523}}</style>",
          f'<rect class="bg" x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="8"/>',
          f'<text class="ink" x="{ml}" y="24" font-size="14" font-weight="600">Quality against speed</text>',
-         f'<text class="mut" x="{W - mr}" y="24" text-anchor="end">best LiveCodeBench (32k or 64k, 30 problems) · '
-         'generation at 8k, one request · ★ current picks</text>']
+         f'<text class="mut" x="{ml}" y="42">best LiveCodeBench (32k or 64k, 30 problems) against '
+         'generation at 8k, one request · lines: 95% interval · ★ current picks</text>']
     for t in range(int(ymin), 101, 10):
         o.append(f'<line class="grid" x1="{ml}" x2="{W - mr}" y1="{Y(t):.1f}" y2="{Y(t):.1f}"/>'
                  f'<text class="mut" x="{ml - 8}" y="{Y(t) + 4:.1f}" text-anchor="end">{t}%</text>')
@@ -341,14 +374,19 @@ def write_scatter_svg(rows: list[dict[str, Any]], out: Path) -> Path | None:
         d = [f"M{X(front[0]['x']):.1f},{Y(front[0]['y']):.1f}"]
         d += [f"H{X(p['x']):.1f}V{Y(p['y']):.1f}" for p in front[1:]]
         o.append(f'<path class="front" d="{" ".join(d)}" stroke-width="2" stroke-dasharray="4 4" opacity="0.4"/>')
+    for p in pts:   # 95% interval whiskers, drawn behind the dots
+        if p["lo"] is not None:
+            o.append(f'<line class="front" x1="{X(p["x"]):.1f}" x2="{X(p["x"]):.1f}" y1="{Y(p["lo"]):.1f}" '
+                     f'y2="{Y(p["hi"]):.1f}" stroke-width="1.5" opacity="0.28"/>')
     for p in pts:
         if p["pick"]:
             o.append(f'<circle class="ring" cx="{X(p["x"]):.1f}" cy="{Y(p["y"]):.1f}" r="10" stroke-width="1.5" opacity="0.6"/>')
     for p in pts:
         on = p in front or p["pick"]
         o.append(f'<circle class="{"dot" if on else "hol"}" cx="{X(p["x"]):.1f}" cy="{Y(p["y"]):.1f}" '
-                 f'r="{6 if on else 4.5}" stroke-width="2"><title>{_esc(p["r"]["model"])}: {p["y"]:g}%, '
-                 f'{p["x"]:g} tok/s</title></circle>')
+                 f'r="{6 if on else 4.5}" stroke-width="2"><title>{_esc(p["r"]["model"])}: {p["y"]:g}%'
+                 + (f' (95%: {p["lo"]:.0f}–{p["hi"]:.0f})' if p["lo"] is not None else "")
+                 + f', {p["x"]:g} tok/s</title></circle>')
     placed: list[tuple[float, float, float, float]] = []
     for p in [q for q in pts if q["pick"]] + [q for q in front if not q["pick"]]:
         text = ("★ " if p["pick"] else "") + p["r"]["model"]
@@ -407,6 +445,8 @@ def _table(rows: list[dict[str, Any]], cols: dict[str, str], higher: dict[str, b
             cell = str(v) if v != "" else "—"
             if c in best and _num(v) == best[c]:
                 cell = f"**{cell}**"
+            if ci := ci_text(r, c):
+                cell += f" <sub>{ci}</sub>"
             cells.append(cell)
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines) + "\n"
@@ -427,9 +467,12 @@ def _picks_md(rows: list[dict[str, Any]]) -> str:
         a, b = _num(r.get("lcb_pass_pct")), _num(r.get("lcb64k_pass_pct"))
         if a is None and b is None:
             return "—"
-        return f"{a:g}% at 32k" if b is None or (a is not None and a >= b) else f"{b:g}% at 64k"
+        col = "lcb_pass_pct" if b is None or (a is not None and a >= b) else "lcb64k_pass_pct"
+        ci = ci_text(r, col)
+        return f"{_num(r[col]):g}% at {'32k' if col == 'lcb_pass_pct' else '64k'}" + (f" ({ci})" if ci else "")
 
-    out = ["\n## Current picks\n\n", "Which model to use for what on this machine, from the analysis.\n\n",
+    out = ["\n## Current picks\n\n", "Which model to use for what on this machine, from the analysis. "
+           "LiveCodeBench scores carry their 95% interval in brackets.\n\n",
            "| Role | Model | LiveCodeBench | terminal-x3 | Gen @8k | Why |\n|---|---|---|---|---|---|\n"]
     for r in picks:
         t = f"{_num(r['terminal_x3_pass_pct']):g}%" if _num(r.get("terminal_x3_pass_pct")) is not None else "—"
@@ -516,7 +559,11 @@ def write_markdown(rows: list[dict[str, Any]], out: Path, hardware: str,
         _table(rows, _present(rows, overnight_cols),
                {"terminal_x3_pass_pct": True, "lcb_pass_pct": True, "lcb64k_pass_pct": True,
                 "lcb128k_pass_pct": True, "lcb60_pass_pct": True, "lcb60_64k_pass_pct": True}),
-        "\n\"Cut off\" counts LiveCodeBench answers that hit `max_tokens` before finishing. Those score as "
+        "\nThe small numbers under each LiveCodeBench score are its 95% interval (Wilson), from the run's own "
+        "problem count. With 30 problems one problem is 3.3 points and an 80% score spans about 63–90%, so two models "
+        "whose intervals overlap widely can't be ranked by these runs: read them as a tie. LCB-60's 60 problems "
+        "narrow that by about a third.\n\n"
+        "\"Cut off\" counts LiveCodeBench answers that hit `max_tokens` before finishing. Those score as "
         "failures, so the cap pulls down models that think at length. \"Quant\" is the GGUF quantization each model "
         "ran at; `UD-` marks Unsloth Dynamic quants, which keep sensitive layers at higher precision. "
         "[TODO.md](TODO.md) has more caveats.\n",

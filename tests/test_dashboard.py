@@ -169,3 +169,15 @@ def test_scatter_svg_and_results_link(tmp_path):
     assert "](data/quality-speed.svg)" in md
     assert dashboard.write_scatter_svg([rows[3]], tmp_path / "data" / "quality-speed.svg") is None
     assert not (tmp_path / "data" / "quality-speed.svg").exists()
+
+
+def test_wilson_interval():
+    lo, hi = dashboard.wilson(80, 30)
+    assert 62 < lo < 64 and 89 < hi < 91
+    assert dashboard.wilson(100, 30)[1] == 100 and dashboard.wilson(0, 30)[0] == 0
+    lo60, hi60 = dashboard.wilson(80, 60)
+    assert hi60 - lo60 < hi - lo                       # more problems, narrower
+    row = {"model": "m", "lcb_pass_pct": "80", "lcb_problems": "30", "lcb64k_pass_pct": "90", "lcb64k_problems": ""}
+    assert dashboard.ci_text(row, "lcb_pass_pct") == "63–90"
+    assert dashboard.ci_text(row, "lcb64k_pass_pct") == ""  # no sample size, no interval
+    assert dashboard.ci_text(row, "model") == ""

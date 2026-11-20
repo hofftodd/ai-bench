@@ -60,6 +60,7 @@
 .rb tbody tr:hover td { background: var(--rb-row-hover); }
 .rb tr:last-child td { border-bottom: 0; }
 .rb td.best { font-weight: 650; color: var(--color-fg); }
+.rb-ci { margin-left: 0.35em; font-size: 0.6875rem; font-weight: 400; color: var(--color-fg-muted); }
 .rb td.muted { color: var(--color-fg-muted); }
 .rb-group th { border-bottom: 0; padding-bottom: 0; text-align: center; color: var(--color-fg-muted); font-weight: 400; }
 .rb-group th span { display: block; border-bottom: 1px solid var(--color-border-line); padding-bottom: 2px; }
@@ -139,7 +140,7 @@
   <section class="rb-card">
     <div class="rb-card-head"><div>
       <h2>Quality against speed</h2>
-      <p class="rb-note">Each dot is a model: its best LiveCodeBench score (32k or 64k budget, 30 problems) against generation speed at 8k context, one request at a time. Up and to the right is better; labeled models are the ones nothing beats on both, and ★ the current picks (a pick with no speed run of its own isn't plotted). Hover a dot for details.</p>
+      <p class="rb-note">Each dot is a model: its best LiveCodeBench score (32k or 64k budget, 30 problems) against generation speed at 8k context, one request at a time. Up and to the right is better. The faint vertical line through each dot is its 95% interval: where two overlap a lot, the runs can't rank them. Labeled models are the ones nothing beats on both, and ★ the current picks (a pick with no speed run of its own isn't plotted). Hover a dot for details.</p>
     </div></div>
     <div class="rb-chart" id="chart-scatter"></div>
   </section>
@@ -181,7 +182,7 @@
   <section class="rb-card">
     <div class="rb-card-head"><div>
       <h2>Overnight results</h2>
-      <p class="rb-note">Click a column to sort. Bold marks each column's best. "Cut off" counts LiveCodeBench answers that hit the token budget, which score as failures. LCB-60 doubles the sample (30 medium + 30 hard, containing the 30) for the closest comparisons. terminal-x3 uses the re-run of the fixed backup-rotation task where one exists. "Quant" is the GGUF quantization; UD- marks Unsloth Dynamic quants.</p>
+      <p class="rb-note">Click a column to sort. Bold marks each column's best. The small range after each LiveCodeBench score is its 95% interval: with 30 problems one problem is 3.3 points, so scores whose ranges overlap widely are a tie. "Cut off" counts LiveCodeBench answers that hit the token budget, which score as failures. LCB-60 doubles the sample (30 medium + 30 hard, containing the 30) for the closest comparisons. terminal-x3 uses the re-run of the fixed backup-rotation task where one exists. "Quant" is the GGUF quantization; UD- marks Unsloth Dynamic quants.</p>
     </div></div>
     <div class="rb-tablewrap"><table id="table-overnight"></table></div>
   </section>
@@ -205,6 +206,17 @@
   const pct = (v) => (v == null ? '' : (Number.isInteger(v) ? String(v) : f1(v)) + '%');
   const C = { blue: dash.colors[0], orange: dash.colors[1] };
   const isPick = (r) => n(r.pick_order) != null;
+  // 95% Wilson interval for a pass rate (percent) over n problems; [lo, hi] in percent, or null.
+  const CI_N = { lcb_pass_pct: 'lcb_problems', lcb64k_pass_pct: 'lcb64k_problems', lcb128k_pass_pct: 'lcb128k_problems',
+    lcb60_pass_pct: 'lcb60_problems', lcb60_64k_pass_pct: 'lcb60_64k_problems' };
+  function ci(r, col) {
+    const v = n(r[col]), k = n(r[CI_N[col]]);
+    if (v == null || !k) return null;
+    const z = 1.96, p = v / 100, d = 1 + z * z / k, c = (p + z * z / (2 * k)) / d;
+    const h = z * Math.sqrt(p * (1 - p) / k + z * z / (4 * k * k)) / d;
+    return [Math.max(0, (c - h) * 100), Math.min(100, (c + h) * 100)];
+  }
+  const ciText = (r, col) => { const c = ci(r, col); return c ? `${f0(c[0])}–${f0(c[1])}` : ''; };
   $('sw-32').style.background = C.blue;
   $('sw-64').style.background = C.orange;
 
@@ -235,7 +247,9 @@
     return rows.map((r) => {
       const a = n(r.lcb_pass_pct), b = n(r.lcb64k_pass_pct);
       const best = a == null && b == null ? null : Math.max(a ?? -1, b ?? -1);
-      return { ...r, lcb_best: best, lcb_best_at: best == null ? '' : (b != null && b >= (a ?? -1) && b === best ? '64k' : '32k') };
+      const at = best == null ? '' : (b != null && b >= (a ?? -1) && b === best ? '64k' : '32k');
+      const iv = at ? ci(r, at === '64k' ? 'lcb64k_pass_pct' : 'lcb_pass_pct') : null;
+      return { ...r, lcb_best: best, lcb_best_at: at, lcb_lo: iv ? iv[0] : null, lcb_hi: iv ? iv[1] : null };
     });
   }
 
@@ -305,7 +319,7 @@
     for (const r of list) {
       const stat = (v, label) => el('div', { class: 'rb-pick-stat' }, el('b', { text: v }), el('span', { text: label }));
       const stats = el('div', { class: 'rb-pick-stats' });
-      if (r.lcb_best != null) stats.append(stat(pct(r.lcb_best), `LiveCodeBench ${r.lcb_best_at}`));
+      if (r.lcb_best != null) stats.append(stat(pct(r.lcb_best), `LiveCodeBench ${r.lcb_best_at}` + (r.lcb_lo != null ? ` · ${f0(r.lcb_lo)}–${f0(r.lcb_hi)}` : '')));
       if (n(r.lcb128k_pass_pct) != null && n(r.lcb128k_pass_pct) > r.lcb_best) stats.append(stat(pct(n(r.lcb128k_pass_pct)), 'LiveCodeBench 128k'));
       if (n(r.lcb60_pass_pct) != null) stats.append(stat(pct(n(r.lcb60_pass_pct)), 'LCB-60'));
       if (n(r.terminal_x3_pass_pct) != null) stats.append(stat(pct(n(r.terminal_x3_pass_pct)), 'terminal-x3'));
@@ -417,7 +431,7 @@
       .attr('role', 'img').attr('aria-label', 'Best LiveCodeBench score against generation speed at 8k, one dot per model');
     const measure = measurer(svg);
     const xMax = d3.max(pts, (r) => n(r.tg8k_tok_s)) * 1.08;
-    const yMin = Math.max(0, Math.floor((d3.min(pts, (r) => r.lcb_best) - 8) / 10) * 10);
+    const yMin = Math.max(0, Math.floor((d3.min(pts, (r) => r.lcb_lo ?? r.lcb_best) - 2) / 10) * 10);
     const x = d3.scaleLinear([0, xMax], [m.left, W - m.right]).nice();
     const y = d3.scaleLinear([yMin, 100], [H - m.bottom, m.top]);
     svg.append('g').selectAll('line').data(y.ticks(5)).join('line')
@@ -438,6 +452,11 @@
     svg.append('path').attr('d', d3.line().x((r) => x(n(r.tg8k_tok_s))).y((r) => y(r.lcb_best)).curve(d3.curveStepAfter)(fr))
       .style('fill', 'none').style('stroke', C.blue).style('stroke-opacity', 0.35).style('stroke-width', 2).style('stroke-dasharray', '4 4');
 
+    // 95% interval of each score, behind the dots: overlapping lines mean the runs can't rank the two.
+    svg.append('g').selectAll('line').data(pts.filter((r) => r.lcb_lo != null)).join('line')
+      .attr('x1', (r) => x(n(r.tg8k_tok_s))).attr('x2', (r) => x(n(r.tg8k_tok_s)))
+      .attr('y1', (r) => y(r.lcb_lo)).attr('y2', (r) => y(r.lcb_hi))
+      .style('stroke', C.blue).style('stroke-width', 1.5).style('stroke-opacity', 0.28).style('stroke-linecap', 'round');
     const dots = svg.append('g').selectAll('circle').data(pts).join('circle')
       .attr('cx', (r) => x(n(r.tg8k_tok_s))).attr('cy', (r) => y(r.lcb_best)).attr('r', (r) => (front.has(r) ? 6 : 4.5))
       .style('fill', (r) => (front.has(r) ? C.blue : 'var(--color-panel)'))
@@ -480,6 +499,7 @@
           ...(isPick(r) ? [{ text: `★ Pick: ${r.pick_role}` }] : []),
           { text: `${show(r.backend)} · ${show(r.quant)}` },
           { text: `LiveCodeBench ${pct(n(r.lcb_pass_pct)) || '—'} at 32k, ${pct(n(r.lcb64k_pass_pct)) || '—'} at 64k` },
+          ...(r.lcb_lo != null ? [{ text: `95% interval of the best: ${f0(r.lcb_lo)}–${f0(r.lcb_hi)}%` }] : []),
           { text: `Generation ${f1(n(r.tg8k_tok_s))} tok/s at 8k` },
           { text: `terminal-x3 ${pct(n(r.terminal_x3_pass_pct)) || '—'}` },
         ], bx, by);
@@ -552,6 +572,7 @@
           td.append(el('span', { class: 'rb-chip', text: show(v) }));
         } else {
           td.textContent = show(v);
+          if (CI_N[c.key] && ciText(r, c.key)) td.append(el('span', { class: 'rb-ci', text: ciText(r, c.key) }));
           if (v === '' || v == null) td.classList.add('muted');
           if (best[c.key] != null && n(v) === best[c.key]) td.classList.add('best');
         }
@@ -629,8 +650,8 @@
       max: 100, fmt: pct, tick: (v) => v + '%',
       tipLines: (r) => [
         { text: `${show(r.backend)} · ${show(r.quant)}` },
-        { color: C.blue, text: `32k  ${pct(n(r.lcb_pass_pct)) || '—'}, ${show(r.lcb_truncated)} cut off` },
-        { color: C.orange, text: `64k  ${pct(n(r.lcb64k_pass_pct)) || '—'}, ${show(r.lcb64k_truncated)} cut off` },
+        { color: C.blue, text: `32k  ${pct(n(r.lcb_pass_pct)) || '—'}${ciText(r, 'lcb_pass_pct') ? ` (95%: ${ciText(r, 'lcb_pass_pct')})` : ''}, ${show(r.lcb_truncated)} cut off` },
+        { color: C.orange, text: `64k  ${pct(n(r.lcb64k_pass_pct)) || '—'}${ciText(r, 'lcb64k_pass_pct') ? ` (95%: ${ciText(r, 'lcb64k_pass_pct')})` : ''}, ${show(r.lcb64k_truncated)} cut off` },
         ...(n(r.lcb60_pass_pct) != null ? [{ text: `60 problems at 32k  ${pct(n(r.lcb60_pass_pct))}` }] : []),
       ],
     });
