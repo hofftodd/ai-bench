@@ -27,7 +27,7 @@ The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3
 
 ## 0. Tuned Flash-Next, Splash and Laguna (Nov 18–20)
 
-Queues 13–18 (`logs/mac-queue13.sh` … `mac-queue18.sh`). The aim: get Strata's 83.3% at 32k (R9700) or better on the Mac's engines, then check the winner against ds4-q4 on a bigger sample, through ai-swap, and on another engine.
+Queues 13–18 (`queues/mac-queue13.sh` … `mac-queue18.sh`). The aim: get Strata's 83.3% at 32k (R9700) or better on the Mac's engines, then check the winner against ds4-q4 on a bigger sample, through ai-swap, and on another engine.
 
 ### Strata's settings on oMLX
 

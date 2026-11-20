@@ -135,9 +135,12 @@ backends:
 
   # oMLX (https://github.com/jundot/omlx, Homebrew jundot/omlx), MLX. Serves every model directory under
   # {gguf} (~/models/omlx holds symlinks named after the model ids). Up to 8 requests at once by default.
+  # Its SSD prompt cache goes to one folder capped at 50 GB: left to itself it grew to ~1 TB over the
+  # Nov 18-19 queues (cleared 2026-11-19). Benchmark prompts rarely repeat, so a small cache costs nothing.
   omlx:
     type: process
     start: omlx serve --model-dir {gguf} --host {host} --port {port} --headless
+           --paged-ssd-cache-dir ~/.omlx/cache/aibench --paged-ssd-cache-max-size 50GB
     port: 8010
     startup_timeout: 1800
 

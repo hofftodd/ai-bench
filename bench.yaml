@@ -181,6 +181,15 @@ models:
     gguf: ~/models/thinkingcap-qwen3.8-27b/ThinkingCap-Qwen3.8-27B-Q4_K_M.gguf
     max_tokens: 32768
     params: {temperature: 0.6, top_p: 0.95, top_k: 20}
+  # ThinkingCap at reasoning_effort medium (TODO: does it keep its terminal-x3 score with less thinking,
+  # as qwen3.8-27b-medium did: 92.6% in 11.7 min?). Sent per request, like qwen3.8-27b-medium.
+  thinkingcap-qwen3.8-27b-medium:
+    <<: *thinkingcap_qwen38_27b
+    params:
+      temperature: 0.6
+      top_p: 0.95
+      top_k: 20
+      extra_body: {chat_template_kwargs: {reasoning_effort: medium}}
   # ThinkingCap at the base's quant. No UD-Q4_K_XL of it exists, so this is bottlecap's f16 quantized
   # locally with the exact per-tensor types of Qwen3.8-27B-UD-Q4_K_XL and Unsloth's imatrix for it.
   thinkingcap-qwen3.8-27b-udq4kxl:

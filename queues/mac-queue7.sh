@@ -1,0 +1,21 @@
+#!/bin/zsh
+# Qwen3.8-Flash-Next UD-Q4_K_XL on llama.cpp (Metal): download, smoke test, then speed, HumanEval, LCB 64k and 32k, llama-bench.
+cd "${0:A:h}/.."   # the ai-bench checkout this script is in
+log() { echo "$(date '+%F %T') $*" >> logs/mac-queue.log; }
+m=qwen3.8-flash-next
+log "queue7 start: download $m UD-Q4_K_XL"
+if ! uvx --from huggingface_hub hf download unsloth/Qwen3.8-Flash-Next-GGUF --include "UD-Q4_K_XL/*" \
+     --local-dir ~/models/qwen3.8-flash-next > logs/mac-download-$m.log 2>&1; then
+  log "download $m FAILED"; exit 1; fi
+log "download $m done"
+if ! uv run aibench -c bench-mac.yaml run -m $m -s humaneval-quick -n 2 --no-dashboard > logs/mac-$m-smoke.log 2>&1 \
+     || grep -q "✗" logs/mac-$m-smoke.log; then
+  log "$m smoke test FAILED (see logs/mac-$m-smoke.log)"; exit 1; fi
+log "$m smoke ok"
+for s in speed-quick humaneval-quick livecodebench-64k livecodebench kernels; do
+  tag=mac; [[ $s == livecodebench-64k ]] && tag=mac-64k
+  log "start $m $s"
+  uv run aibench -c bench-mac.yaml run -m $m -s $s --tag $tag > logs/mac-$m-$s.log 2>&1
+  log "$m $s exit $?"
+done
+log "queue7 done"
