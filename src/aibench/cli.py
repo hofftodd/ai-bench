@@ -159,6 +159,8 @@ def rebuild_dashboard(cfg, root: Path | None = None, hardware: str | None = None
     hardware = hardware or cfg.hardware   # one box/backend per dashboard; ROCm runs carry another label
     runs = report.load_runs([cfg.results_dir])
     rows = dashboard.build_rows(runs, hardware=hardware, overnight=overnight)
+    for m in dashboard.apply_picks(rows, out_cfg.get("picks")):
+        console.print(f"[yellow]picks: no results for {m}, not shown[/]")
     out = dashboard.write_data(rows, data_dir)
     console.print(f"wrote {out} ({len(rows)} models)")
     other = hardware.replace("-vulkan", "-rocm")   # the *-rocm model twins run under this label

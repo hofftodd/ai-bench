@@ -144,3 +144,12 @@ def test_comparison_same_model_pairs_and_ratios(tmp_path):
     assert "y (ds4) vs x (swap)" in md
     assert "**Mac:** `z` (swap)" in md
     assert not out.exists()
+
+
+def test_apply_picks_marks_rows_and_reports_missing():
+    rows = [{"model": "a"}, {"model": "b"}]
+    missing = dashboard.apply_picks(rows, [{"model": "b", "role": "Hard problems", "note": "best"},
+                                           {"model": "zz", "role": "Gone"}])
+    assert missing == ["zz"]
+    assert rows[1] | {} == {"model": "b", "pick_order": 1, "pick_role": "Hard problems", "pick_note": "best"}
+    assert rows[0]["pick_role"] == ""

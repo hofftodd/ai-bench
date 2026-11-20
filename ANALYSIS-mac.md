@@ -1,19 +1,22 @@
 # Analysis of the Mac Studio runs
 
-The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3–6, 2026: three of the R9700's models on llama.cpp (Metal), DeepSeek V4 Flash on [DwarfStar](https://github.com/antirez/ds4) (`ds4`), three large MoE models on [sushi](https://github.com/beamivalice/sushi) (MLX), then Qwen3.8-Flash-Next on llama.cpp and on [oMLX](https://github.com/jundot/omlx) (MLX), and Inkling-Small on oMLX. The numbers are in [RESULTS-mac.md](RESULTS-mac.md); [ANALYSIS-compare.md](ANALYSIS-compare.md) sets them against the R9700. Last updated 2026-11-08 07:00.
+The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3–6, 2026: three of the R9700's models on llama.cpp (Metal), DeepSeek V4 Flash on [DwarfStar](https://github.com/antirez/ds4) (`ds4`), three large MoE models on [sushi](https://github.com/beamivalice/sushi) (MLX), then Qwen3.8-Flash-Next on llama.cpp and on [oMLX](https://github.com/jundot/omlx) (MLX), and Inkling-Small on oMLX. Nov 18–20 added Strata's settings on oMLX (a thinking budget and greedy decoding), 60-problem LiveCodeBench runs, Laguna S 2.1 and the [Splash](https://github.com/incoai/splash) engine. The numbers are in [RESULTS-mac.md](RESULTS-mac.md); [ANALYSIS-compare.md](ANALYSIS-compare.md) sets them against the R9700. Last updated 2026-11-20.
 
-> **The benchmark queue is complete.** Section 1 covers LiveCodeBench at 64k and 128k, plus later runs: Qwen3.8-Flash-Next on llama.cpp and oMLX, Inkling-Small on oMLX, [Ripple-65B Preview](#ripple-65b-preview), the [oMLX verdict](#should-we-lean-on-omlx) with its 6-bit check, and the [terminal suite](#tool-calling-the-terminal-suite). Sections 2–3 are from the first (32k) sweep; section 4 has the picks. Next on this machine: tuning, sushi 1.5.0, DeepSeek V4.1 and Inkling 2 Small ([TODO.md](TODO.md#mac-studio-future)).
+> **Section 0 is new (Nov 18–20)** and changes the picks in section 4. Section 1 covers LiveCodeBench at 64k and 128k, plus later runs: Qwen3.8-Flash-Next on llama.cpp and oMLX, Inkling-Small on oMLX, [Ripple-65B Preview](#ripple-65b-preview), the [oMLX verdict](#should-we-lean-on-omlx) with its 6-bit check, and the [terminal suite](#tool-calling-the-terminal-suite). Sections 2–3 are from the first (32k) sweep; section 4 has the picks. Next on this machine: oMLX 0.8.0 for DeepSeek V4.1 and Inkling 2 Small ([TODO.md](TODO.md#mac-studio-future)).
 
 **In short:**
 
-- **DeepSeek V4 Flash at Q4 on DwarfStar (`ds4-q4`) is the best model on either machine: 93.3% on LiveCodeBench at 64k** (28 of 30), with nothing cut off, 14 of 15 hard problems, and the shortest answers of any DeepSeek build. All three DeepSeek builds score 83–93% at 64k.
+- **Tuned Qwen3.8-Flash-Next on oMLX is now the Mac's best model for its speed.** With Strata's two settings, a 24,576-token thinking budget and greedy decoding, it scored **90.0% on LiveCodeBench at 32k** (up from 50.0%), none cut off, in 46 minutes. On a 60-problem sample at 64k it ties ds4-q4 (52 of 60 each) in 155 minutes against ds4-q4's 346, and at 32k it solves 53 of 60 in 87. terminal-x3: 98.1%. ai-swap now serves it this way. See [section 0](#0-tuned-flash-next-splash-and-laguna-nov-1820).
+- **The 60-problem runs pulled ds4-q4 back to the pack:** 86.7% at 64k, against 93.3% on the 30. Its 30-problem lead was partly the sample.
+- **Splash (DFlash2) matches oMLX's quality in less time.** Flash-Next on Splash scored 85.0% on the 60 in 53 minutes, with 100% on terminal-x3. Flint on Splash scored 66.7% at 32k with bf16 activations (the same as llama.cpp and oMLX) and decodes 2.4× faster than llama.cpp: 260 tok/s at 8k. Laguna S 2.1 and the 6-bit Flash-Next didn't beat what we have.
+- **DeepSeek V4 Flash at Q4 on DwarfStar (`ds4-q4`) scored 93.3% on LiveCodeBench at 64k** (28 of 30), with nothing cut off, 14 of 15 hard problems, and the shortest answers of any DeepSeek build. All three DeepSeek builds score 83–93% at 64k.
 - **The 32k budget was hiding most of the differences.** Every model except MiMo gained 3–7 problems at 64k. The 32k ranking was mostly a ranking of who finished thinking in time.
 - **qwen3.8-27b is a slow thinker, not a weak one: 86.7% at 128k** (12 of 15 hard problems), up from 70.0% at 64k and 56.7% at 32k. A 17.5 GB dense model ties DeepSeek at 2 bits once it has room, but its answers average 39k tokens and the run took 5 hours.
 - **flint is the best value:** 80.0% at 64k in 79 minutes, from a ~20 GB model. The DeepSeek builds take 174–230 minutes for 3–4 more problems.
 - **GLM-5.3-Flash and MiMo-V2.6-Flash are verbose and weaker.** Even at 128k they score 63–70%, with 5–8 answers still cut off and 48–55k-token answers on average. Neither is worth running here for coding.
 - **Qwen3.8-Flash-Next's sushi gap is the engine, not the model.** On llama.cpp it scored **76.7% at 64k**, against 63–70% on sushi and 83.3% on Strata (R9700). Its answers average 29k tokens on llama.cpp and 7k on sushi: sushi makes the model think about a quarter as long. llama.cpp needs the room, though: at 32k it scored 53.3% with 14 of 30 answers cut off.
 - **oMLX is the engine to lean on here.** On flint, qwen3.8-27b and Qwen3.8-Flash-Next it matched llama.cpp's LiveCodeBench scores within noise (a possible ~3-point loss, likely the quant), finished 64k runs 1.3–2.1× sooner, and batched best: flint reached 351 tok/s in total with 8 requests in flight, against 220 on llama.cpp. A 6-bit rerun of qwen3.8-27b showed the earlier hint of a ~3-point loss was noise (37 of 60 solved, against 36 at 4 bits and 38 on llama.cpp). See [Should we lean on oMLX?](#should-we-lean-on-omlx).
-- **Inkling-Small (Thinking Machines, 276B / 12B active) runs well on oMLX: 70.0% at both 32k and 64k,** with concise 13–16k-token answers, nothing cut off at 64k, and 63 tok/s at 8k. A solid mid-pack model, below flint and the DeepSeek builds. It's the warm-up for Inkling 2 Small, whose weights aren't out yet.
+- **Inkling-Small (Thinking Machines, 276B / 12B active) runs well on oMLX: 70.0% at both 32k and 64k,** with concise 13–16k-token answers, nothing cut off at 64k, and 63 tok/s at 8k. A solid mid-pack model, below flint and the DeepSeek builds. It was the warm-up for Inkling 2 Small: its weights are out (Nov 17), a partial llama.cpp run scored 70% at 32k with attention on the CPU, and the oMLX run waits for oMLX 0.8.0.
 - **Ripple-65B Preview (Ricursive, 65B dense) has excellent tool use but is slow and mid-pack at coding:** 100% on `terminal-x3`, 76.7% on LiveCodeBench at 64k (the same as flint), at about 22 tok/s. flint on oMLX matches it at 7× the speed, so it isn't a pick here.
 - **Tool calling works on both engines the picks rely on.** On `terminal-x3` (18 shell tasks × 3), ds4-q4 on DwarfStar passed all 54 (100%, 35 minutes) and flint on oMLX 52 of 54 (96.3%, 7 minutes), with no malformed tool calls. On the R9700, DeepSeek V4 Flash at 2 bits scored 96.3% and flint on llama.cpp 94.4%.
 - **Everything that runs on both machines scores the same here.** qwen3.8-27b and DeepSeek V4 Flash got exactly their R9700 LiveCodeBench scores (56.7% and 60.0%), with nearly the same number of cut-off answers. The harness and the Metal build are sound.
@@ -22,12 +25,88 @@ The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3
 
 ---
 
+## 0. Tuned Flash-Next, Splash and Laguna (Nov 18–20)
+
+Queues 13–18 (`logs/mac-queue13.sh` … `mac-queue18.sh`). The aim: get Strata's 83.3% at 32k (R9700) or better on the Mac's engines, then check the winner against ds4-q4 on a bigger sample, through ai-swap, and on another engine.
+
+### Strata's settings on oMLX
+
+The R9700's run.json showed what Strata does differently ([TODO.md](TODO.md#mac-studio-future)): it ends thinking at 24,576 tokens when `max_tokens` is 32k, decodes greedily when the request sends no sampling, and stops a reply that repeats one token 256 times. oMLX 0.7.3 takes a `thinking_budget` per request (it only forces `</think>`, with no wrap-up sentence) and `temperature: 0`; it has no loop guard. Same oQ4e-mtp checkpoint throughout.
+
+| Qwen3.8-Flash-Next on oMLX | LCB 32k (30) | LCB 64k (30) | LCB-60 32k | LCB-60 64k | terminal-x3 |
+|---|---|---|---|---|---|
+| no budget, sampled (earlier) | 50.0 (14 cut off) | 73.3 (7) | — | — | — |
+| budget, sampled | 80.0 (1), 53 min | 86.7 (0), 88 min | — | — | — |
+| **budget + greedy** | **90.0** (0), **46 min** | **90.0** (0), 80 min | **88.3** (53/60), 87 min | 86.7 (52/60), 155 min | **98.1%**, 15 min |
+| budget + greedy, 6-bit oQ6e | — | — | 86.7 (52/60), 96 min | — | — |
+| budget + greedy through ai-swap | — | — | 86.7 (52/60), 80 min | — | 98.1%, 20 min |
+
+- **The budget is most of the gain:** it lifts 32k from 50.0% to 80.0% by ending runaway thinking (14 cut-offs → 1). **Greedy adds 3 more problems** at 32k. Together they reach 90.0%, past Strata's 83.3%.
+- **64k doesn't help once the budget is on:** 90.0% on the 30 again, and on the 60 one problem fewer (52 vs 53) in 1.8× the time. **Use the 32k budget (24,576 thinking tokens).**
+- **No loops showed up** in the greedy runs (no answer ran to the cap), so a loop guard isn't needed yet.
+- **6 bits buys nothing:** 52 of 60 against 53 for the 4-bit, about 10% slower. This matches the 27B's 6-bit check. Keep oQ4e.
+- **ai-swap now serves it tuned.** oMLX's model settings for `qwen3.8-flash-next-oq4e` (the id ai-swap serves, MTP off) set `temperature: 0` with `force_sampling` (which overrides the sampling agents send) and `thinking_budget_tokens: 24576`. The check sent an agent's usual sampling on purpose: 52 of 60 and 98.1% on terminal-x3, the same as calling oMLX directly within noise. The previous settings are in `~/.omlx/model_settings.json.pre-tuning`.
+
+### Against ds4-q4 on 60 problems
+
+| | LCB 30, 64k | **LCB-60, 64k** | LCB-60 min | terminal-x3 | gen @8k | memory |
+|---|---|---|---|---|---|---|
+| ds4-q4 (DwarfStar) | 93.3 | **86.7** (52/60) | 346 | 100% | 56 tok/s | 153 GB |
+| Flash-Next, budget + greedy (oMLX) | 90.0 | **86.7** (52/60) | **155** | 98.1% | 102 tok/s | 108 GB |
+| same, 32k budget | 90.0 (32k) | 88.3 (53/60, 32k) | **87** | | | |
+
+- **A tie at 52 of 60,** and Flash-Next gets there in 45% of the time at 64k, or a quarter at 32k. One problem is 1.7 points on 60 and the standard error is about ±4.5, so neither is ahead.
+- **ds4-q4's 93.3% was partly the 30-problem sample.** On the 60 (which contain the 30) it's 86.7%. It still has no thinking budget, so it isn't tuned the way Flash-Next now is.
+- **So Flash-Next takes the hard-problem role** for anything time-sensitive. ds4-q4 stays useful as a second, different model (a reviewer or escalation that fails on different problems).
+
+### ThinkingCap-Qwen3.8-Flash-Next (llama.cpp)
+
+BottleCap AI's fine-tune of Flash-Next that thinks less, as their Q4_K_M on llama.cpp b12098 (no MLX build exists).
+
+| | LCB 32k | LCB 64k | terminal-x3 |
+|---|---|---|---|
+| ThinkingCap, no budget | 76.7 (7 cut off), 60 min | 83.3 (2), 118 min | 98.1% |
+| ThinkingCap, budget (sampled) | 86.7 (0), 56 min | 86.7 (0), 105 min | — |
+| Flash-Next on llama.cpp, no budget | 53.3 (14) | 76.7 (5) | — |
+
+- **It thinks less, as claimed:** 76.7% at 32k without a budget, where the base scored 53.3% on the same engine.
+- **The budget helps it too, but less**, and it ends up where the base does with the budget and sampling (86.7 vs 80.0–86.7). It never ran greedy. Without an MLX build it's slower than the base on oMLX, so it isn't a pick.
+
+### Laguna S 2.1 (oMLX)
+
+poolside's 118B-A8B agentic-coding MoE, as their NVFP4 MLX build (72 GB), thinking on, poolside's sampling.
+
+| LCB 64k | terminal-quick | terminal-x3 | gen @512 / @8k | prompt @8k |
+|---|---|---|---|---|
+| 50.0 (0 cut off), 93 min | 100% | 96.3% (17 min) | 62 / 60 tok/s | 2,446 tok/s |
+
+- **Solid tool use, weak coder.** 96.3% on terminal-x3 is flint's score; 50.0% at 64k is the lowest of any model that finished its answers. Not adopted, like Laguna XS on the R9700.
+
+### Splash (DFlash2 speculative decoding)
+
+[Splash](https://github.com/incoai/splash) 1.7.0 is a Metal engine built around Inco's DFlash2 drafts. It serves GGUFs only for these two models, so it ran Unsloth's UD-Q4_K_XL rather than the oQ4e builds: the comparison is engine and quant together. Text only, 128K context, INT8 KV cache (its default), batched requests.
+
+| | LCB | terminal-x3 | gen @512 / @8k | prompt @512 / @8k | first token @8k |
+|---|---|---|---|---|---|
+| **Flash-Next on Splash**, budget + greedy | **85.0** (51/60), **53 min** | **100%**, 6 min | 147 / 133 | 3,281 / 4,880 | 1.7 s |
+| Flash-Next on oMLX, budget + greedy (MTP) | 88.3 (53/60), 87 min | 98.1%, 15 min | 166 / 127 | 1,778 / 3,916 | 2.1 s |
+| Flash-Next on oMLX, no MTP (as ai-swap serves it) | — | 98.1% via ai-swap | 111 / 102 | 1,879 / 4,164 | 2.0 s |
+| **Flint on Splash** | **63.3** (30, 7 cut off), 21 min | 94.4%, 6 min | **280 / 252** | **9,224 / 13,165** | **0.6 s** |
+| Flint on Splash, bf16 activations | **66.7** (30, 7 cut off), 20 min | — | 270 / 260 | 9,165 / 12,798 | 0.7 s |
+| Flint on oMLX / llama.cpp | 66.7 / 66.7 at 32k (7 cut off each) | 96.3% / — | 177 / 161, 100 / 99 | 1,348 / 5,245, 4,079 / 4,335 | 1.6 / 1.9 s |
+
+- **Flash-Next on Splash is competitive.** Two problems fewer on the 60 (within noise), a perfect terminal score, and the 60-problem run took 40% less time than on oMLX: it batches 4 concurrent requests well. One request at a time it decodes faster than oMLX without MTP (133 vs 102 tok/s at 8k), about the same as oMLX with MTP (127).
+- **Flint on Splash is the fastest thing on this machine** (2.4× llama.cpp's decode, 2.5–3× oMLX's prompt processing, 0.6 s to first token at 8k), at the same quality: 63.3% with its default 8-bit activations and 66.7% with bf16, against 66.7% for llama.cpp and oMLX at 32k, with the same 7 answers cut off on every engine. The one-problem gap is noise, and bf16 costs no measurable speed, so use bf16 for evaluations anyway. It's the strongest case for adding Splash to ai-swap, for executors.
+- **To use it in production** ai-swap would need a Splash engine. Splash's SSD cache is capped (32 GiB by default) and dropped at exit, unlike oMLX's, which filled 1 TB over these queues.
+
+---
+
 ## What ran
 
 | | |
 |---|---|
 | Machine | Mac Studio, M5 Ultra, 256 GB unified memory, macOS 27.2 |
-| Engines | llama.cpp b12098 (Metal; b12192 for Ripple-65B, started by aibench with llama-swap's flags: q8_0 KV cache, flash attention, 4 slots), DwarfStar (`ds4-server --metal --batched-session 4`), sushi 1.4.1 (MLX), oMLX 0.7.3 (MLX, up to 8 requests at once) |
+| Engines | llama.cpp b12098 (Metal; b12192 for Ripple-65B, started by aibench with llama-swap's flags: q8_0 KV cache, flash attention, 4 slots), DwarfStar (`ds4-server --metal --batched-session 4`), sushi 1.4.1 (MLX), oMLX 0.7.3 (MLX, up to 8 requests at once), Splash 1.7.0 (Metal, DFlash2; Nov 19–20) |
 | Concurrency | `speed-concurrent-eos`: a 1k-token prompt and 256 generated tokens per request, at 1, 2, 4 and 8 requests in flight (EOS allowed, as in `speed-quick-eos`) |
 | Profile | `mac`: `speed-quick`, `humaneval-quick` (40 problems), `livecodebench` (15 medium + 15 hard, 32k tokens), `kernels` (llama-bench). The sushi and ds4 models run `mac-engine` (no llama-bench) and measure speed with `speed-quick-eos`. |
 | Config | [`bench-mac.yaml`](bench-mac.yaml): same model keys, GGUFs and sampling as the R9700's `bench.yaml`, so results compare model for model |
@@ -284,11 +363,14 @@ In order of value:
 
 | role | pick | why |
 |---|---|---|
-| Hardest problems | **DeepSeek V4 Flash on DwarfStar (ds4-q4)** | 93.3% at 64k, 14 of 15 hard; 100% on terminal-x3; same speed as ds4-q2, so take Q4 when 153 GB is free. Give it a 64k output budget. |
+| Hard problems | **Qwen3.8-Flash-Next on oMLX, tuned** (greedy + 24,576-token thinking budget, as ai-swap now serves it) | 90.0% on the 30 at 32k in 46 min, 53 of 60 at 32k in 87 min; ties ds4-q4 on the 60 at 64k in 45% of the time; 98.1% on terminal-x3. 108 GB. |
+| Second opinion, escalation | **DeepSeek V4 Flash on DwarfStar (ds4-q4)** | 86.7% on the 60 at 64k (93.3% on the 30), 100% on terminal-x3, but 4× slower than tuned Flash-Next. A different model, so it fails on different problems. Give it a 64k output budget. |
 | Hard problems, small footprint | **qwen3.8-27b** (oMLX or llama.cpp) | 83–87% at 128k from 17.5 GB, but 39k-token answers; give it a 128k budget. oMLX doubles generation at 8k. The 4-bit oQ4e is enough; 6 bits added nothing. |
 | Strong and fast, executors | **flint on oMLX** | 77% at 64k in 48 min (llama.cpp: 73–80%); 161 tok/s at 8k, 351 tok/s in total with 8 requests in flight, from 23 GB. 96.3% on terminal-x3 with clean tool calls. Fallback: flint on llama.cpp. |
-| Fastest, interactive | **Qwen3.8-Flash-Next on oMLX** | 102 tok/s at 8k (up to 154 with MTP for single requests), 2.0 s TTFT, and llama.cpp's quality (73–77% at 64k), where sushi's build scores 63–70%. MTP off when several agents share it. |
+| Fastest, interactive | **Qwen3.8-Flash-Next on oMLX** | 102 tok/s at 8k (up to 154 with MTP for single requests), 2.0 s TTFT, and the hard-problem quality above once tuned. MTP off when several agents share it. |
+| Worth watching | Splash (engine) | Flash-Next at oMLX's quality with 40% shorter LiveCodeBench runs; flint at 2.4× llama.cpp's decode. Needs an ai-swap engine to use. |
 | Worth watching | Inkling-Small (oMLX) | 70% at 32k and 64k with short answers; below flint. Inkling 2 Small may change this. |
+| Not recommended | Laguna S 2.1 (oMLX) | 50.0% at 64k, 96.3% terminal-x3, 62 tok/s |
 | Worth watching | Ripple-65B Preview (llama.cpp) | 100% on terminal-x3 and 76.7% at 64k, but ~22 tok/s and no batching gain; flint does the same job 7× faster. |
 | Not recommended | GLM-5.3-Flash, MiMo-V2.6-Flash | 63–70% even at 128k, with 48–55k-token answers |
 

@@ -79,7 +79,7 @@ The report keeps the **latest** result for each (hardware, backend, model, suite
 
 ### The dashboard
 
-`dashboard/` is a static web page that shows the results as charts and tables: the overnight scores, generation speed at 8k context, and full results tables.
+`dashboard/` is a static web page that shows the results as charts and tables, for both machines (a switch picks R9700 or Mac Studio): quality against speed, LiveCodeBench at 32k and 64k, terminal-x3, generation speed at 8k context, and sortable results tables. Each machine's data is rebuilt with its own config (`aibench dashboard` for the R9700, `aibench -c bench-mac.yaml dashboard` for the Mac); running one machine's command on the other empties its data, since `results/` holds only that machine's runs.
 
 ```bash
 uv run aibench dashboard                       # rebuild dashboard/data/ and RESULTS.md from results/

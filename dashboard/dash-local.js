@@ -56,6 +56,7 @@
     datasets[id] = { status: 'loading', data: [] };
     try {
       const res = await fetch(url, { cache: 'no-store' });
+      if (res.status === 404) { datasets[id] = { status: 'missing', data: [] }; notify(); return; }
       if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
       const rows = d3.csvParse(await res.text());
       datasets[id] = { status: 'ok', data: rows, columns: rows.columns };
@@ -82,15 +83,19 @@
     }
   }
 
-  async function showUpdated() {
+  // The data line follows the machine page.html shows (it fires `rb-machine` with the dataset's meta path).
+  async function showUpdated(meta = 'data/meta.json', id = 'models') {
     const el = document.getElementById('updated');
+    const link = document.getElementById('csv-link');
+    if (link && window.DASH_DATASETS[id]) link.href = window.DASH_DATASETS[id];
     try {
-      const meta = await (await fetch('data/meta.json', { cache: 'no-store' })).json();
-      el.textContent = `Data built ${new Date(meta.updated).toLocaleString()} from results/ · ${meta.models} models`;
+      const m = await (await fetch(meta, { cache: 'no-store' })).json();
+      el.textContent = `Data built ${new Date(m.updated).toLocaleString()} from results/ · ${m.models} models`;
     } catch {
       el.textContent = 'No data yet: run `uv run aibench dashboard`';
     }
   }
+  window.addEventListener('rb-machine', (e) => showUpdated(e.detail.meta, e.detail.id));
 
   function themeToggle() {
     const btn = document.getElementById('theme-toggle');

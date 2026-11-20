@@ -10,6 +10,30 @@ monitor_gpus: auto            # GPUs with >= 4 GiB VRAM (skips the 780M iGPU)
 default_backend: swap         # unknown -m names are tried as model ids on this backend
 plugins: [plugins]            # every *.py in ./plugins is imported (custom backends/suites)
 
+# The current recommendation per role (ANALYSIS.md, "Recommendations"). The dashboard and RESULTS.md lead with these.
+outputs:
+  picks:
+    - model: thinkingcap-qwen3.8-27b
+      role: Main coding agent
+      note: >-
+        98.1% terminal-x3 with the fewest turns, 80% LCB at 64k, no bad tool calls, ~30% fewer tokens than its base.
+        Set the client's max output to 64k or more.
+    - model: strata
+      role: Hard problems, escalation
+      note: >-
+        Best LCB here (83.3% twice), never cut off. Slow to read prompts and needs ~60 GB RAM and the whole GPU:
+        batch jobs and stubborn problems, not the always-on agent.
+    - model: flint
+      role: Fast all-round coder
+      note: 94.4% terminal-x3, 2,650 tok/s prompt processing and 79 tok/s generation; never ran out of turns.
+    - model: qwen3.8-27b-medium
+      role: Quick edits, short agent tasks
+      note: >-
+        qwen3.8-27b at reasoning_effort medium: 92.6% terminal-x3 in 11.7 min, writing 62% fewer tokens.
+    - model: nemotron-lightning
+      role: Long-context reading
+      note: The only model fitted to a 786k context; fastest generation (131 tok/s). Reading, not multi-step changes.
+
 # Reserve this machine's ai-swap for each run (aibench/reserve.py): only the run's requests are
 # served, so agents on the Mac can't load models here mid-benchmark. Released at the end.
 reserve:

@@ -1,11 +1,12 @@
 # R9700 vs Mac Studio
 
-How the same models do on the two machines: the Radeon AI PRO R9700 box (32 GB VRAM, llama.cpp b11850 on Vulkan, plus Strata) and the Mac Studio (M5 Ultra, 256 GB unified memory, llama.cpp b12098 on Metal, plus DwarfStar, sushi and oMLX). The tables are in [RESULTS-compare.md](RESULTS-compare.md). Each machine's own analysis is in [ANALYSIS.md](ANALYSIS.md) (R9700) and [ANALYSIS-mac.md](ANALYSIS-mac.md) (Mac). Last updated 2026-11-08 07:00.
+How the same models do on the two machines: the Radeon AI PRO R9700 box (32 GB VRAM, llama.cpp b11850 on Vulkan, plus Strata) and the Mac Studio (M5 Ultra, 256 GB unified memory, llama.cpp b12098 on Metal, plus DwarfStar, sushi and oMLX). The tables are in [RESULTS-compare.md](RESULTS-compare.md). Each machine's own analysis is in [ANALYSIS.md](ANALYSIS.md) (R9700) and [ANALYSIS-mac.md](ANALYSIS-mac.md) (Mac). Last updated 2026-11-20.
 
 > The Mac's terminal-suite, 6-bit and Ripple-65B runs are in. The Mac's 128k results are in [ANALYSIS-mac.md](ANALYSIS-mac.md#128k-for-the-models-still-cut-off-at-64k); the R9700 never ran 128k.
 
 **In short:**
 
+- **Strata's lead was its settings, and the Mac now beats it with them (Nov 18–20).** With Strata's thinking budget (24,576 tokens at 32k) and greedy decoding, Qwen3.8-Flash-Next on oMLX scored **90.0% at 32k** with nothing cut off, against Strata's 83.3% on the R9700, and 53 of 60 on a 60-problem sample. ai-swap on the Mac now serves it that way. On the same 60 problems at 64k, DeepSeek V4 Flash Q4 (ds4-q4) scored 52 of 60, so its 93.3% on 30 was partly the sample ([ANALYSIS-mac.md section 0](ANALYSIS-mac.md#0-tuned-flash-next-splash-and-laguna-nov-1820)).
 - **The Mac now has the best score on either machine: DeepSeek V4 Flash at Q4 on DwarfStar, 93.3% on LiveCodeBench at 64k.** The R9700's best were Strata at 83.3% (32k) and ThinkingCap and DeepSeek at 80.0% (64k). The Q4 build is 153 GB, so it can't run on the R9700 box at all.
 - **Same GGUF, same answers.** At 32k, qwen3.8-27b and DeepSeek V4 Flash got identical LiveCodeBench scores on both machines (56.7%, 60.0%), and flint was one problem apart. At 64k the Mac scored 1–4 problems higher on all three, which is within noise. Quality doesn't depend on the machine, so the rest is about speed and capacity.
 - **For models that fit in the R9700's 32 GB, the Mac is 1.1–1.7× faster.** Raw generation is 1.3–1.6× faster, and LiveCodeBench finishes in half the time. Prompt processing on the dense 27B is a tie.
@@ -100,7 +101,7 @@ These pair each machine's best engine for a model. Engine, quant and hardware al
   - **llama.cpp on the Mac closes most of it: 76.7% at 64k,** 2 problems below Strata and within noise. Its answers average 29k tokens against sushi's 7k, so sushi makes the model reason far less. The Mac's hardware isn't the cause.
   - **oMLX matches llama.cpp:** 73.3% at 64k with answers just as long (34k tokens), in 100 minutes instead of 208. So the short reasoning is a sushi trait, not an MLX one.
   - llama.cpp and oMLX need the room: at 32k they scored 53.3% and 50.0%, with 14 of 30 answers cut off on each.
-  - Strata reached 83.3% at 32k with nothing cut off, so its answers are shorter than llama.cpp's and yet at least as good. Strata also ran with its own sampling defaults (aibench sent none), where the Mac's engines got Qwen's thinking-mode settings. Its answer lengths and sampling, in the R9700's run.json, are the next thing to check. [ANALYSIS-mac.md](ANALYSIS-mac.md#qwen38-flash-next-on-three-engines) has the details.
+  - Strata reached 83.3% at 32k with nothing cut off, so its answers are shorter than llama.cpp's and yet at least as good. Strata also ran with its own sampling defaults (aibench sent none), where the Mac's engines got Qwen's thinking-mode settings. *Checked 2026-11-16 and confirmed 2026-11-19: the budget and greedy decoding explain it; with both, oMLX scores 90.0% at 32k.* [ANALYSIS-mac.md](ANALYSIS-mac.md#qwen38-flash-next-on-four-engines) has the details.
 - **Speed, one request at a time:**
 
   | | R9700 | Mac | Mac ÷ R9700 |
