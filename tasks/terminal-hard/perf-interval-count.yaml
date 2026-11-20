@@ -1,0 +1,92 @@
+name: perf-interval-count
+difficulty: hard
+max_turns: 40
+instruction: |
+  /work/count.py reads /work/data.txt (a list of points, then a list of query intervals; see the
+  script) and prints, for each query in order, how many points fall inside it. It is correct but far
+  too slow: it must finish within 10 seconds on this machine, and it currently takes many minutes.
+
+  Make /work/count.py fast enough while keeping its output exactly the same, byte for byte, for any
+  valid input, not just this one (the check also runs it on other data). Keep it a Python 3 script
+  run as `python3 /work/count.py /work/data.txt`, using only the standard library.
+setup: |
+  cat > /work/count.py <<'PY'
+  import sys
+
+  # Input: N, then N integer points (one per line), then Q, then Q lines "lo hi" (lo may exceed hi:
+  # then the interval is empty). A point p is inside [lo, hi] when lo <= p <= hi. Points may repeat.
+  def main(path):
+      with open(path) as f:
+          it = iter(f.read().split())
+      n = int(next(it))
+      pts = [int(next(it)) for _ in range(n)]
+      q = int(next(it))
+      out = []
+      for _ in range(q):
+          lo, hi = int(next(it)), int(next(it))
+          out.append(str(sum(1 for p in pts if lo <= p <= hi)))
+      sys.stdout.write("\n".join(out) + "\n")
+
+  main(sys.argv[1])
+  PY
+  python3 - <<'PY'
+  import random
+  def make(path, seed, n, q):
+      r = random.Random(seed)
+      pts = [r.randint(-10**9, 10**9) for _ in range(n)] + [r.choice([0, 5, -5, 10**9]) for _ in range(n // 50)]
+      r.shuffle(pts)
+      qs = []
+      for _ in range(q):
+          a, b = r.randint(-10**9, 10**9), r.randint(-10**9, 10**9)
+          if r.random() < 0.85 and a > b: a, b = b, a
+          if r.random() < 0.05: a = b = r.choice(pts)
+          qs.append(f"{a} {b}")
+      with open(path, "w") as f:
+          f.write(f"{len(pts)}\n" + "\n".join(map(str, pts)) + f"\n{q}\n" + "\n".join(qs) + "\n")
+  make("/work/data.txt", 1, 200000, 200000)
+  make("/root/expected/other.txt", 2, 150000, 220000)
+  make("/root/expected/small.txt", 3, 40, 300)
+  PY
+  cp /work/count.py /root/expected/reference.py
+  python3 /root/expected/reference.py /root/expected/small.txt > /root/expected/small.out
+  python3 - <<'PY'
+  import bisect
+  for name in ("data", "other"):
+      src = "/work/data.txt" if name == "data" else "/root/expected/other.txt"
+      it = iter(open(src).read().split()); n = int(next(it)); pts = sorted(int(next(it)) for _ in range(n))
+      q = int(next(it)); out = []
+      for _ in range(q):
+          lo, hi = int(next(it)), int(next(it))
+          out.append(str(max(0, bisect.bisect_right(pts, hi) - bisect.bisect_left(pts, lo))))
+      open(f"/root/expected/{name}.out", "w").write("\n".join(out) + "\n")
+  PY
+  chown agent:agent /work/count.py /work/data.txt
+verify: |
+  cp /work/count.py /tmp/count.py
+  for t in data other small; do
+    src=/root/expected/$t.txt; [ $t = data ] && src=/work/data.txt
+    if ! timeout 10 python3 /tmp/count.py $src > /tmp/$t.got 2>/tmp/$t.err; then
+      echo "$t: failed or took over 10 s"; head -c 300 /tmp/$t.err; exit 1
+    fi
+    cmp -s /tmp/$t.got /root/expected/$t.out || { echo "$t: output differs"; exit 1; }
+  done
+  echo ok
+solution: |
+  cat > /work/count.py <<'PY'
+  import bisect
+  import sys
+
+  def main(path):
+      with open(path) as f:
+          it = iter(f.read().split())
+      n = int(next(it))
+      pts = sorted(int(next(it)) for _ in range(n))
+      q = int(next(it))
+      out = []
+      for _ in range(q):
+          lo, hi = int(next(it)), int(next(it))
+          out.append(str(max(0, bisect.bisect_right(pts, hi) - bisect.bisect_left(pts, lo))))
+      sys.stdout.write("\n".join(out) + "\n")
+
+  main(sys.argv[1])
+  PY
