@@ -1,6 +1,6 @@
 # Analysis of the October 2026 runs
 
-An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), DeepSeek V4 Flash on Oct 27–30, and ThinkingCap at its base model's quant on Oct 30–31. Last updated 2026-10-31 10:00. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
+An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), DeepSeek V4 Flash on Oct 27–30, and ThinkingCap at its base model's quant on Oct 30–31. Last updated 2026-11-21; the Nov 20–21 runs are in their own section below. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
 
 **In short:**
 
@@ -13,6 +13,43 @@ An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b1
 - **Give reasoning models at least 64k output tokens.** At 32k, a third or more of hard answers are cut off.
 - **Stay on Vulkan.** ROCm is 13–25% slower at generation for most models.
 - **DeepSeek V4 Flash is accurate but very slow here, and doesn't beat Strata.** 96.3% terminal-x3 and 97.5% HumanEval+, but at ~9 tok/s it took 250 minutes for terminal-x3 (14× ThinkingCap). LiveCodeBench: 60.0% at 32k and **80.0% at 64k**, level with ThinkingCap and within noise of Strata's 83.3%. But the 64k run took 27 hours, against 1.9 hours for Strata.
+
+---
+
+## Nov 20–21: terminal-hard, LCB-60 and concurrency
+
+Queue `queues/r9700-queue-gaps.sh` and an earlier terminal-hard queue.
+
+**terminal-hard is saturated on arrival.** The six multi-step tasks (three runs each) were meant to separate the models that max out terminal-x3. Every model that finished scored 100%:
+
+| model | terminal-hard | time |
+|---|---|---|
+| flint | 100% | 42.2 min |
+| ThinkingCap | 100% | 45.8 min |
+| qwen3.8-27b | 100% | 49.3 min |
+| strata | not run | |
+
+Only the times differ. Strata's first attempt didn't start (strata wasn't on the queue's PATH). On the retry, Nov 21 06:37, about 5 minutes in, the GPU's scheduler (MES) stopped answering, the driver's GPU reset failed, a CPU locked up and the machine rebooted. Strata had run the 3.6-hour LiveCodeBench job the day before without trouble, so it's likely the combination of a RAM-offloaded model and the task containers. Not retried: with the other three at 100%, strata's score couldn't rank anything. The suite needs harder tasks ([TODO.md](TODO.md#caveats-in-the-current-results)).
+
+**LiveCodeBench-60, the hard-problem role:**
+
+| model | budget | score | medium | hard | cut off | median answer | time |
+|---|---|---|---|---|---|---|---|
+| ThinkingCap | 64k | **88.3%** (53/60, 78–94) | 29/30 | 24/30 | 4 | 14.7k tokens | 465 min |
+| strata | 32k (its own thinking budget) | 83.3% (50/60, 72–91) | 28/30 | 22/30 | 0 | 18.2k tokens | 218 min |
+
+ThinkingCap is three problems ahead (two of them hard), but the intervals overlap almost entirely, so it's a tie, and it took over twice as long. The 30-problem runs said the same (80% vs 83.3%). Strata stays the pick for batch hard problems because of the time; ThinkingCap at 64k is an equal on quality, and it's the main agent anyway, so a hard problem doesn't need a model swap. For reference, the Mac's tuned Flash-Next (Strata's model on oMLX) scored 88.3% on the same 60 in 87 minutes ([ANALYSIS-mac.md](ANALYSIS-mac.md)).
+
+**Concurrency** (`speed-concurrent`, total decode across requests):
+
+| model | 1 request | 4 at once |
+|---|---|---|
+| flint | 83.5 tok/s | 101 tok/s |
+| ThinkingCap | 44.7 tok/s | 48.3 tok/s |
+
+On this GPU four agents share roughly one agent's throughput: each gets about a quarter. Running several executors at once on the R9700 doesn't add capacity; use the Mac for that.
+
+**qwen3.8-27b at medium** decodes at 53.3 tok/s at 8k, the same as at its default effort (the setting changes how much it writes, not how fast).
 
 ---
 
