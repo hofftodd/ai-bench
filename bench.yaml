@@ -181,6 +181,19 @@ models:
     gguf: ~/models/thinkingcap-qwen3.8-27b/ThinkingCap-Qwen3.8-27B-Q4_K_M.gguf
     max_tokens: 32768
     params: {temperature: 0.6, top_p: 0.95, top_k: 20}
+  # Inkling 2 Mini (Thinking Machines, 2026-11-20; Apache-2.0): 26.4B MoE, 3.4B active, the middle 12 of
+  # 24 layers run three times (5.4B effective active). unsloth UD-Q4_K_XL, served by ai-swap on Unsloth's
+  # llama.cpp fork b12588-mix (ROCm build, ROCm0) with its DSpark draft head, set per model with --server-bin
+  # in llama-config's models.conf: ~35 tok/s, against ~17 on Vulkan and on mainline b12622 (which needs the
+  # Mainline_Support GGUF layout). ctx 262144 with -ub 128 (the default ubatch runs out of VRAM). Sampling per the model card:
+  # temperature 1.0 and no truncation (min_p 0 overrides llama-server's 0.05 default). The card warns of
+  # long reasoning loops when debugging code, so keep max_tokens bounded.
+  inkling-2-mini:
+    backend: swap
+    id: inkling-2-mini
+    gguf: ~/models/inkling-2-mini/Inkling-2-Mini-UD-Q4_K_XL.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 1.0, top_k: 0, min_p: 0.0}
   # ThinkingCap at reasoning_effort medium (TODO: does it keep its terminal-x3 score with less thinking,
   # as qwen3.8-27b-medium did: 92.6% in 11.7 min?). Sent per request, like qwen3.8-27b-medium.
   thinkingcap-qwen3.8-27b-medium:
