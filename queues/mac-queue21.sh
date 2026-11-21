@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Inkling 2 Small, then DeepSeek V4.1 Flash, on oMLX 0.8.0. Starts when queue20 is done; DeepSeek runs overnight.
+# Inkling 2 Small, then DeepSeek V4.1 Flash, on oMLX 0.8.0. Starts when queue22 is done (first try 09:54 failed: no native kernels); DeepSeek runs overnight.
 # Each model runs alone: the reservation unloads ai-swap's models, and aibench's oMLX server holds one model.
 cd "${0:A:h}/.."   # the ai-bench checkout this script is in
 log() { echo "$(date '+%F %T') $*" >> logs/mac-queue.log; }
@@ -26,8 +26,8 @@ for kv in sys.argv[2:]:
 json.dump(d, open(p, "w"), indent=2)
 PY
 }
-log "queue21 waiting for queue20"
-until grep -q "queue20 done" logs/mac-queue.log; do sleep 60; done
+log "queue21 waiting for queue22"
+until grep -q "queue22 done" logs/mac-queue.log; do sleep 60; done
 log "queue21 start"
 
 setting inkling-2-small-oq3 mtp_enabled=false
