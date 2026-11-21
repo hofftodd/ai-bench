@@ -449,6 +449,9 @@ models:
     gguf: ~/models/omlx
     max_tokens: 32768
     params: {temperature: 1.0, top_p: 1.0}
+    # Resident at ~206.6 GB even with Engram on the SSD; the default (balanced) guard then leaves ~0.1 GB
+    # for prefill and rejected 59 of 60 prompts (2026-11-20). Aggressive keeps 1.5-4 GB free instead.
+    args: [--memory-guard, aggressive]
   omlx-deepseek-v4.1-flash-budget:
     <<: *omlx-ds41
     params: {temperature: 1.0, top_p: 1.0, extra_body: {thinking_budget: 24576}}

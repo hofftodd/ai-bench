@@ -9,19 +9,21 @@ sushi-qwen3.8-flash-next-4bpw,sushi,4bpw,7,done,1,,70,,27.3,63.3,0,,,97.5,95,,11
 ds4-q4,ds4,Q4_K,8,done,7,100,76.7,35.4,168,93.3,0,,,100,97.5,,605,62.7,922,55.7,8.95,,,,,,86.7,346,,,100,54,30,30,,,60,3,"Second opinion, escalation","DeepSeek V4 Flash Q4 on DwarfStar: 93.3% at 64k (86.7% on LCB-60), 100% terminal-x3. A different model that fails on different problems, but ~4x slower than tuned Flash-Next."
 qwen3.8-flash-next,metal,UD-Q4_K_XL,9,done,14,,53.3,,90.3,76.7,5,,,100,97.5,,1012,49.7,1400,47.1,5.92,1595,47.4,,,,,,,,,,30,30,,,,,,
 inkling-small,omlx,,10,done,4,,70,,61.4,70,0,,,100,97.5,,709,66.9,2050,62.8,4.00,,,,,,,,,,,,30,30,,,,,,
-omlx-qwen3.8-flash-next-mtp,omlx,,11,done,14,,50,,59.4,73.3,7,,,100,97.5,,1878,250,4007,154,2.04,,,,,,,,,,,,30,30,,,,,,
-omlx-flint,omlx,,12,done,7,96.3,66.7,7.35,34.6,76.7,1,,,97.5,95,83.3,1348,177,5245,161,1.57,,,,,,,,,,96.3,54,30,30,,,,2,"Executors, fast all-round","flint on oMLX: 77% at 64k in 48 min, 96.3% terminal-x3, 161 tok/s at 8k and 351 tok/s in total with 8 requests in flight, from 23 GB."
+omlx-qwen3.8-flash-next-mtp,omlx,,11,done,14,,50,,59.4,73.3,7,,,100,97.5,,1826,162,5294,128,1.55,,,,,,,,,,,,30,30,,,,,,
+omlx-flint,omlx,,12,done,7,96.3,66.7,7.35,34.6,76.7,1,,,97.5,95,83.3,1861,164,5072,145,1.63,,,,,,,,,,96.3,54,30,30,,,,2,"Executors, fast all-round","flint on oMLX: 77% at 64k in 48 min, 96.3% terminal-x3, 161 tok/s at 8k and 351 tok/s in total with 8 requests in flight, from 23 GB."
 omlx-qwen3.8-27b,omlx,,13,done,13,,53.3,,86.1,66.7,8,83.3,3,100,95,,1149,102,1868,112,4.38,,,,,,,,,,,,30,30,30,,,,,
 omlx-qwen3.8-27b-6bit,omlx,,14,done,13,,50,,102,73.3,7,,,,,,1044,100,1670,83.1,4.90,,,,,,,,,,,,30,30,,,,,,
 ripple-65b,metal-b12192,Q4_K_M,15,done,8,100,66.7,31.1,144,76.7,2,,,,,100,427,21.7,433,21.1,19.2,,,,,,,,,,100,54,30,30,,,,,,
 inkling-2-small,metal-inkling2,UD-Q2_K_XL,16,done,7,,70,,323,,,,,100,97.5,,288,13.5,99.5,10.2,82.7,,,,,,,,,,,,30,,,,,,,
 omlx-qwen3.8-flash-next-budget,omlx,,17,done,1,,80,,52.7,,,,,,,,,,,,,,,,,,,,,,,,30,,,,,,,
-omlx-qwen3.8-flash-next-budget-greedy,omlx,,18,done,0,98.1,90,14.8,46.1,,,,,,,,1778,166,3916,127,2.09,,,88.3,0,87.3,,,,,98.1,54,30,,,60,,1,Hard problems and planning,"Qwen3.8-Flash-Next on oMLX with greedy decoding and a 24,576-token thinking budget, as ai-swap serves it (qwen3.8-flash-next). 90% at 32k, 53 of 60 on LCB-60, ties ds4-q4 in a quarter to half the time. 127 tok/s at 8k with MTP as benchmarked; ai-swap serves it without MTP (~102 tok/s, better with several agents)."
+omlx-qwen3.8-flash-next-budget-greedy,omlx,,18,done,0,98.1,90,14.8,46.8,,,,,,,,1875,141,3952,122,2.31,,,88.3,0,87.3,,,,,98.1,54,30,,,60,,1,Hard problems and planning,"Qwen3.8-Flash-Next on oMLX with greedy decoding and a 24,576-token thinking budget, as ai-swap serves it (qwen3.8-flash-next). 90% at 32k, 53 of 60 on LCB-60, ties ds4-q4 in a quarter to half the time. 127 tok/s at 8k with MTP as benchmarked; ai-swap serves it without MTP (~102 tok/s, better with several agents)."
 thinkingcap-qwen3.8-flash-next,metal,Q4_K_M,19,done,7,98.1,76.7,11.2,60.4,83.3,2,,,97.5,97.5,,970,54.0,1401,53.1,5.89,1605,55.3,,,,,,,,98.1,54,30,30,,,,,,
 thinkingcap-qwen3.8-flash-next-budget,metal,Q4_K_M,20,done,0,,86.7,,55.9,,,,,,,,,,,,,,,,,,,,,,,,30,,,,,,,
 splash-flint,splash,,21,done,7,94.4,63.3,6.29,20.5,,,,,,,,9224,280,13165,252,0.64,,,,,,,,,,94.4,54,30,,,,,,,
 splash-flint-bf16,splash,,22,done,7,,66.7,,19.8,,,,,,,,9165,270,12798,260,0.66,,,,,,,,,,,,30,,,,,,,
 nemotron-3.5-super-vl,metal-b12192,Q4_0,,not run,,,,,,76.7,4,,,,,100,1023,85.1,1250,88.0,6.59,,,,,,,,,,,,,30,,,,,,
+omlx-deepseek-v4.1-flash,omlx,,,not run,,,,,,,,,,,,,493,51.9,618,51.2,27.3,,,,,,90,169,,,,,,,,,60,,,
+omlx-deepseek-v4.1-flash-budget,omlx,,,not run,,,,,,,,,,,,,,,,,,,,88.3,1,109,,,,,,,,,,60,,,,
 omlx-laguna-s-2.1,omlx,,,not run,,96.3,,17.4,,50,0,,,,,100,1401,62.2,2446,60.3,3.36,,,,,,,,,,96.3,54,,30,,,,,,
 omlx-qwen3.8-flash-next,omlx,,,not run,,,,,,,,,,,,,1879,111,4164,102,1.97,,,,,,,,,,,,,,,,,,,
 omlx-qwen3.8-flash-next-6bit-budget-greedy,omlx,,,not run,,,,,,,,,,,,,,,,,,,,86.7,0,95.7,,,,,,,,,,60,,,,
