@@ -107,6 +107,16 @@ backends:
     env: {RADIANCE_HOME: /home/thoffman/src/radiance/build/radiance_home, GPU_MAX_ALLOC_PERCENT: "100", GPU_MAX_HEAP_SIZE: "100"}
     pre: ['curl -s -H "X-AI-Swap-Lock: $AI_SWAP_LOCK" -H "Authorization: Bearer $AI_SWAP_API_KEY" http://localhost:8080/unload']
     startup_timeout: 1800
+  # The same engine at upstream main 5a80ee2f (2026-11-22), built in ~/src/radiance-main. Build 689f5545 above
+  # refuses the Flash-Next IQR-V4 container on one card (its rotated-int8 trunk down-projections get only the CPU
+  # kernel: "shape this kernel does not serve"); this build loads it.
+  radiance-main:
+    type: process
+    start: ~/src/radiance-main/build/bin/radiance --config ~/models-test/radiance/{model_id}.yaml
+    port: 8095
+    env: {RADIANCE_HOME: /home/thoffman/src/radiance-main/build/radiance_home, GPU_MAX_ALLOC_PERCENT: "100", GPU_MAX_HEAP_SIZE: "100"}
+    pre: ['curl -s -H "X-AI-Swap-Lock: $AI_SWAP_LOCK" -H "Authorization: Bearer $AI_SWAP_API_KEY" http://localhost:8080/unload']
+    startup_timeout: 1800
 
 models:
   nemotron-lightning: &nemotron_lightning
@@ -292,7 +302,7 @@ models:
     id: qwen3.8-27b-iq4r
     gguf: null
   flashnext-radiance:          # StillDeadcode/qwen3.8-next-flash-iqr-v4 (113 GiB), experts tiered to RAM
-    backend: radiance
+    backend: radiance-main
     id: flashnext-radiance
     max_tokens: 32768
     params: {temperature: 1.0, top_p: 0.95, top_k: 20}   # as avalon (Qwen's thinking defaults)

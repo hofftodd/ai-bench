@@ -1,6 +1,6 @@
 # Analysis of the October 2026 runs
 
-An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), DeepSeek V4 Flash on Oct 27–30, and ThinkingCap at its base model's quant on Oct 30–31. Last updated 2026-11-21; the Nov 20–21 runs and the Nov 21 Radiance evaluation are in their own sections below. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
+An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), DeepSeek V4 Flash on Oct 27–30, and ThinkingCap at its base model's quant on Oct 30–31. Last updated 2026-11-21; the Nov 20–21 runs and the Nov 21–22 Radiance evaluation are in their own sections below. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
 
 **In short:**
 
@@ -13,15 +13,15 @@ An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b1
 - **Give reasoning models at least 64k output tokens.** At 32k, a third or more of hard answers are cut off.
 - **Stay on Vulkan.** ROCm is 13–25% slower at generation for most models.
 - **DeepSeek V4 Flash is accurate but very slow here, and doesn't beat Strata.** 96.3% terminal-x3 and 97.5% HumanEval+, but at ~9 tok/s it took 250 minutes for terminal-x3 (14× ThinkingCap). LiveCodeBench: 60.0% at 32k and **80.0% at 64k**, level with ThinkingCap and within noise of Strata's 83.3%. But the 64k run took 27 hours, against 1.9 hours for Strata.
-- **Radiance, a second engine, runs the 27B 2–4× faster at the same or better quality, and batches.** Its own IQ4R container generates 78.7 tok/s at 8k (llama.cpp 52.5), reads prompts 3× faster, decodes 246 tok/s in total across 8 requests (llama.cpp barely gains from parallel requests), and scores 80% on LiveCodeBench-60 at 64k in 145 min. Flash-Next on Radiance is still to run.
+- **Radiance, a second engine, runs the 27B 2–4× faster at the same or better quality, and batches.** Its own IQ4R container generates 78.7 tok/s at 8k (llama.cpp 52.5), reads prompts 3× faster, decodes 246 tok/s in total across 8 requests (llama.cpp barely gains from parallel requests), and scores 80% on LiveCodeBench-60 at 64k in 145 min. Flash-Next on Radiance is 5× slower than strata (13.5 tok/s against 67.8 at 8k); the experts it streams over the x4 link hold it back.
 
 ---
 
-## Nov 21: Radiance, a second engine on the R9700
+## Nov 21–22: Radiance, a second engine on the R9700
 
 [Radiance](https://codeberg.org/StillDeadcode/radiance) 2.2.0 is a C++/HIP inference server with its own kernels for RDNA4 (gfx1201). It serves its own `.rad` containers, batches requests (up to `max-num-seqs`), and ships speculative drafters inside the container. The question was whether it fixes the two weak spots: concurrency (four agents share one agent's throughput on llama.cpp) and Flash-Next's speed under strata. Runs are labeled `--hardware r9700-radiance` (backend `radiance` in `bench.yaml`, one card, `tp: 1`, ai-swap emptied first).
 
-**So far: on the 27B it is a clear win, at the same or better quality.** Flash-Next has not run yet (below).
+**On the 27B it is a clear win, at the same or better quality. On Flash-Next it loses to strata by a wide margin** (below).
 
 **Setup:**
 
@@ -69,14 +69,30 @@ At 32k the score is identical to llama.cpp's, at 4.3× the speed. At 64k it is 2
 - **No Radiance ThinkingCap yet:** Radiance doesn't read GGUF. `rad-convert` builds containers from Hugging Face safetensors checkpoints, so a ThinkingCap container would need its safetensors release (not tried).
 - **ai-swap is unchanged:** Radiance has an OpenAI-compatible API, but it holds the whole card and serves its own containers. Putting it behind ai-swap is a separate decision (TODO.md).
 
-**Flash-Next (`StillDeadcode/qwen3.8-next-flash-iqr-v4`, 113 GiB), not run yet.** The container downloaded and checksummed at 18:38. It waits for the Inkling 2 Mini queue, which has the GPU tonight. Its config is the README's one-card row (`~/models-test/radiance/flashnext-radiance.yaml`):
+**Flash-Next (`StillDeadcode/qwen3.8-next-flash-iqr-v4`, 113 GiB): it runs, but at a fifth of strata's speed.**
 
-- 42 GiB of experts pinned in RAM (`placement: expert_tiered`, `host-pool-mib: 43000`)
-- 4 sequences, int8 KV, MTP depth 3, 4096-token prefill steps
+- **Load bug and fix:** build 689f5545 refused the container on one card. In every layer, the rotated-int8 down-projections (`ssm_out`, `attn_output`, `ffn_down_shexp`, 96 weights in all) got only the CPU kernel, which can't join their two planes: "startup stopped: shape this kernel does not serve". Listing libr4d first and the shipped `tp1` settings failed the same way. Upstream main 5a80ee2f (Nov 22, built in `~/src/radiance-main`, backend `radiance-main` in `bench.yaml`) loads it and serves after 40 s.
+- **Config:** the README's one-card row (`~/models-test/radiance/flashnext-radiance.yaml`, with `prefix-cache-mib: 4096`):
+  - 42 GiB of experts pinned in RAM (`placement: expert_tiered`, `host-pool-mib: 43000`)
+  - 4 sequences, int8 KV, MTP depth 3, 4096-token prefill steps
 
-The 47.7 GiB n-gram table doesn't also fit in RAM, so it should be read from disk. On one card every prefill step copies the pooled experts across the x4 Gen3 link. That's the same weakness strata has, so prompt speed is the number to watch.
+| | Radiance Flash-Next IQR-V4 | strata (same model, IQ3_S) |
+|---|---|---|
+| prompt 512 / 8k tok/s | 99.2 / 378 | 158 / 780 |
+| generation @512 / @8k tok/s | 10.5 / 13.5 | 63.5 / 67.8 |
+| time to first token @8k | 21.7 s | 10.5 s |
+| MTP draft acceptance | 51% | |
+| total decode, 1 / 2 / 4 requests (1k prompts) | 23.6 / 23.4 / 28.0 tok/s | |
+| GPU power, average | 120–141 W | |
 
-`~/models-test/radiance/after-inkling.sh` runs speed-quick, both concurrency suites and LiveCodeBench-60 on it when the Inkling queue ends. Strata's marks to beat: LCB-60 83.3% in 218 min, prompt 780 and generation 67.8 tok/s at 8k. A follow-up to this PR will fill in the results.
+**What the numbers show:**
+
+- **Concurrency:** batching doesn't help here. 4 requests give 28 tok/s in total. At 8 (beyond the row's 4 sequences, so they queue) it's 19.5, with first tokens at 26.7 s.
+- **Where the time goes:** the card draws about 120 W against 299 W on the 27B, so it mostly waits. The likely cause is the link. Experts not resident in VRAM cross the x4 Gen3 link (about 3.9 GB/s) on every step, while strata runs the RAM-side experts on the CPU and avoids it. The README's own note says a one-card prefill step copies every pooled expert across the link once.
+
+**The answer:** Radiance can't run Flash-Next faster than strata on this box. It is 2–5× slower at everything measured, and it doesn't batch it either. That would change only with a faster link (see [TODO.md](TODO.md#pcie-link)) or a second card (the README's `tp: 2` row keeps more experts in VRAM).
+
+**LiveCodeBench-60 on it is queued** in the same aibench call, right after the 16-request test (still running at 06:45). At about 13 tok/s per request and 28 tok/s in total, it may take about 12 h; Inkling 2 Mini took 725 min at a similar decode rate. Strata's mark is 83.3% in 218 min. The score will be added in a follow-up commit.
 
 ---
 
