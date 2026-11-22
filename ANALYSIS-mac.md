@@ -1,12 +1,13 @@
 # Analysis of the Mac Studio runs
 
-The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3–6, 2026: three of the R9700's models on llama.cpp (Metal), DeepSeek V4 Flash on [DwarfStar](https://github.com/antirez/ds4) (`ds4`), three large MoE models on [sushi](https://github.com/beamivalice/sushi) (MLX), then Qwen3.8-Flash-Next on llama.cpp and on [oMLX](https://github.com/jundot/omlx) (MLX), and Inkling-Small on oMLX. Nov 18–20 added Strata's settings on oMLX (a thinking budget and greedy decoding), 60-problem LiveCodeBench runs, Laguna S 2.1 and the [Splash](https://github.com/incoai/splash) engine; Nov 20 added DeepSeek V4.1 Flash on oMLX 0.8.0. The numbers are in [RESULTS-mac.md](RESULTS-mac.md); [ANALYSIS-compare.md](ANALYSIS-compare.md) sets them against the R9700. Last updated 2026-11-20.
+The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3–6, 2026: three of the R9700's models on llama.cpp (Metal), DeepSeek V4 Flash on [DwarfStar](https://github.com/antirez/ds4) (`ds4`), three large MoE models on [sushi](https://github.com/beamivalice/sushi) (MLX), then Qwen3.8-Flash-Next on llama.cpp and on [oMLX](https://github.com/jundot/omlx) (MLX), and Inkling-Small on oMLX. Nov 18–20 added Strata's settings on oMLX (a thinking budget and greedy decoding), 60-problem LiveCodeBench runs, Laguna S 2.1 and the [Splash](https://github.com/incoai/splash) engine; Nov 20 added DeepSeek V4.1 Flash on oMLX 0.8.0, and Nov 21 a recheck of oMLX's native kernels. The numbers are in [RESULTS-mac.md](RESULTS-mac.md); [ANALYSIS-compare.md](ANALYSIS-compare.md) sets them against the R9700. Last updated 2026-11-22.
 
-> **[Nov 20](#nov-20-deepseek-v41-omlxs-kernels-inkling-2) is the newest:** DeepSeek V4.1 Flash, oMLX's native kernels, and why Inkling 2 Small doesn't run here. **Section 0 (Nov 18–20)** changed the picks in section 4. Section 1 covers LiveCodeBench at 64k and 128k, plus later runs: Qwen3.8-Flash-Next on llama.cpp and oMLX, Inkling-Small on oMLX, [Ripple-65B Preview](#ripple-65b-preview), the [oMLX verdict](#should-we-lean-on-omlx) with its 6-bit check, and the [terminal suite](#tool-calling-the-terminal-suite). Sections 2–3 are from the first (32k) sweep; section 4 has the picks. Next on this machine: decide whether to keep oMLX's native kernels ([TODO.md](TODO.md#tooling-and-housekeeping)).
+> **[Nov 20](#nov-20-deepseek-v41-omlxs-kernels-inkling-2) is the newest:** DeepSeek V4.1 Flash, oMLX's native kernels, and why Inkling 2 Small doesn't run here. **Section 0 (Nov 18–20)** changed the picks in section 4. Section 1 covers LiveCodeBench at 64k and 128k, plus later runs: Qwen3.8-Flash-Next on llama.cpp and oMLX, Inkling-Small on oMLX, [Ripple-65B Preview](#ripple-65b-preview), the [oMLX verdict](#should-we-lean-on-omlx) with its 6-bit check, and the [terminal suite](#tool-calling-the-terminal-suite). Sections 2–3 are from the first (32k) sweep; section 4 has the picks. The kernels stay (rechecked Nov 21). What's next is in [section 3](#3-what-to-run-next-on-this-machine).
 
 **In short:**
 
 - **DeepSeek V4.1 Flash on oMLX is the Mac's highest LiveCodeBench score, but not a pick.** 90.0% on the 60 at 64k (54 of 60, 2 cut off) in 169 minutes, and 88.3% at 32k with the thinking budget in 109. That's one problem above tuned Flash-Next (88.3% at 32k) and two above ds4-q4 (86.7% at 64k): a tie inside the 95% intervals (about 80–95%). It decodes at 51 tok/s, holds ~207 GB with its Engram tables on the SSD, and leaves room for nothing else. See [Nov 20](#nov-20-deepseek-v41-omlxs-kernels-inkling-2).
+- **oMLX's native kernels stay.** Three alternating rounds each way on Nov 21 found no consistent speed difference (flint 148.0 against 147.3 tok/s at 8k, and 348 against 351 in total with 8 in flight). The Nov 20 drop came from comparing against older runs on 0.7.3. DeepSeek V4.1's format needs the kernels.
 - **Tuned Qwen3.8-Flash-Next on oMLX is now the Mac's best model for its speed.** With Strata's two settings, a 24,576-token thinking budget and greedy decoding, it scored **90.0% on LiveCodeBench at 32k** (up from 50.0%), none cut off, in 46 minutes. On a 60-problem sample at 64k it ties ds4-q4 (52 of 60 each) in 155 minutes against ds4-q4's 346, and at 32k it solves 53 of 60 in 87. terminal-x3: 98.1%. ai-swap now serves it this way. See [section 0](#0-tuned-flash-next-splash-and-laguna-nov-1820).
 - **The 60-problem runs pulled ds4-q4 back to the pack:** 86.7% at 64k, against 93.3% on the 30. Its 30-problem lead was partly the sample.
 - **Splash (DFlash2) matches oMLX's quality in less time.** Flash-Next on Splash scored 85.0% on the 60 in 53 minutes, with 100% on terminal-x3. Flint on Splash scored 66.7% at 32k with bf16 activations (the same as llama.cpp and oMLX) and decodes 2.4× faster than llama.cpp: 260 tok/s at 8k. Laguna S 2.1 and the 6-bit Flash-Next didn't beat what we have.
@@ -398,13 +399,16 @@ qwen3.8-27b runs with an MTP drafter. Its server speed is 94 tok/s after a 512-t
 
 In order of value:
 
-1. **A second 64k pass for ds4-q4 and flint,** the two results the recommendations below lean on most.
-2. ~~Docker and `terminal-x3` for flint on oMLX and ds4-q4 on DwarfStar~~ *Done: 96.3% and 100%, no bad tool calls.* Ripple-65B Preview: done, see [above](#ripple-65b-preview).
-3. **Strata's answer lengths and sampling** from the R9700's run.json, to explain how Strata scores 83.3% at 32k with nothing cut off.
-4. **`llama-bench -d 8192`** for qwen3.8-27b, to explain the drafter's long-context drop (a couple of minutes).
-5. **ThinkingCap and Strata's model on llama.cpp.** ThinkingCap is the R9700's best model that fits in VRAM, so it's the obvious next comparison (on llama.cpp and oMLX).
+Updated Nov 22. Done since the first sweep: the 60-problem runs (ds4-q4 86.7% at 64k), `terminal-x3` for flint, ds4-q4 and Ripple, Strata's settings on oMLX ([section 0](#0-tuned-flash-next-splash-and-laguna-nov-1820)), ThinkingCap-Qwen3.8-Flash-Next on llama.cpp, DeepSeek V4.1, Inkling 2 Small (doesn't fit) and the kernels check. In order of value:
 
-[TODO.md](TODO.md#mac-studio-future) lists the later work: sushi 1.5.0, DeepSeek V4.1 Flash, oMLX and the tuning experiments.
+1. **Revisit ai-factory's roles.** Its spike notes still put the planner on ds4-q4. Section 4 now has tuned Flash-Next for hard problems and planning, with ds4-q4 as a second opinion.
+2. **Arete-27B** (NousResearch's Qwen3.8-27B fine-tune, 16.8 GB, in `~/models-pending/`). It has the same base as ThinkingCap, so LCB-60 at 64k and `terminal-x3` show whether it's a second ThinkingCap. It fits the R9700 too.
+3. **Splash with several agents** (`speed-concurrent-eos`). That decides whether Splash is worth an ai-swap engine: its speedup has only been measured on one request.
+4. **AesCode-32B** (in `~/models-pending/`). It generates HTML from a prompt and an image, so it's a speed and smoke test rather than a LiveCodeBench run.
+5. **GLM-5.3-Flash at 4 bits** (~155 GB), to see whether the 2.4-bit sushi build explains its weak score. Not during an ai-factory run: it pushes other models out of ai-swap.
+6. **Smaller checks:** `llama-bench -d 8192` for qwen3.8-27b (the drafter's long-context drop), sushi 1.5.0, and the monthly disk-wear check (`smartctl`; next one about Dec 6).
+
+[TODO.md](TODO.md#mac-studio-future) has the details.
 
 ## 4. Which models to use on this machine, and for what
 
@@ -422,4 +426,4 @@ In order of value:
 | Worth watching | Ripple-65B Preview (llama.cpp) | 100% on terminal-x3 and 76.7% at 64k, but ~22 tok/s and no batching gain; flint does the same job 7× faster. |
 | Not recommended | GLM-5.3-Flash, MiMo-V2.6-Flash | 63–70% even at 128k, with 48–55k-token answers |
 
-This table may change with DeepSeek V4.1 and Inkling 2 Small.
+DeepSeek V4.1 and Inkling 2 Small are now settled (Nov 20), and neither changes the picks.
