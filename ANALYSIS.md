@@ -126,12 +126,12 @@ At 32k the score is identical to llama.cpp's, at 4.3× the speed. At 64k it is 2
 
 **What the numbers show:**
 
-- **Concurrency:** batching doesn't help here. 4 requests give 28 tok/s in total. At 8 (beyond the row's 4 sequences, so they queue) it's 19.5, with first tokens at 26.7 s.
+- **Concurrency:** batching doesn't help here. 4 requests give 28 tok/s in total. At 8 (beyond the row's 4 sequences, so they queue) it's 19.5, with first tokens at 26.7 s, and at 16 it's 17.1, with first tokens at 97 s.
 - **Where the time goes:** the card draws about 120 W against 299 W on the 27B, so it mostly waits. The likely cause is the link. Experts not resident in VRAM cross the x4 Gen3 link (about 3.9 GB/s) on every step, while strata runs the RAM-side experts on the CPU and avoids it. The README's own note says a one-card prefill step copies every pooled expert across the link once.
 
 **The answer:** Radiance can't run Flash-Next faster than strata on this box. It is 2–5× slower at everything measured, and it doesn't batch it either. That would change only with a faster link (see [TODO.md](TODO.md#pcie-link)) or a second card (the README's `tp: 2` row keeps more experts in VRAM).
 
-**LiveCodeBench-60 on it is queued** in the same aibench call, right after the 16-request test (still running at 06:45). At about 13 tok/s per request and 28 tok/s in total, it may take about 12 h; Inkling 2 Mini took 725 min at a similar decode rate. Strata's mark is 83.3% in 218 min. The score will be added in a follow-up commit.
+**LiveCodeBench-60 was stopped by choice.** It started at about 06:50 Nov 22, right after the 16-request test (17.1 tok/s in total, first tokens at 97 s), and was stopped at 09:08 after about 2 h 20 min, before it had written any results, so there's no partial count. At about 13 tok/s per request it would have taken about 12 h, against strata's 83.3% in 218 min. The speed results already settle the strata question, so a score wouldn't change the answer.
 
 ---
 
