@@ -1,6 +1,6 @@
 # Analysis of the October 2026 runs
 
-An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), DeepSeek V4 Flash on Oct 27–30, and ThinkingCap at its base model's quant on Oct 30–31. Last updated 2026-11-21; the Nov 20–21 runs are in their own section below. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
+An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), DeepSeek V4 Flash on Oct 27–30, and ThinkingCap at its base model's quant on Oct 30–31. Last updated 2026-11-22; the Nov 20–21 runs and Inkling 2 Mini (Nov 21–22) are in their own sections below. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
 
 **In short:**
 
@@ -13,6 +13,44 @@ An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b1
 - **Give reasoning models at least 64k output tokens.** At 32k, a third or more of hard answers are cut off.
 - **Stay on Vulkan.** ROCm is 13–25% slower at generation for most models.
 - **DeepSeek V4 Flash is accurate but very slow here, and doesn't beat Strata.** 96.3% terminal-x3 and 97.5% HumanEval+, but at ~9 tok/s it took 250 minutes for terminal-x3 (14× ThinkingCap). LiveCodeBench: 60.0% at 32k and **80.0% at 64k**, level with ThinkingCap and within noise of Strata's 83.3%. But the 64k run took 27 hours, against 1.9 hours for Strata.
+
+---
+
+## Nov 21–22: Inkling 2 Mini
+
+Queue `queues/r9700-inkling.sh`. Inkling 2 Mini (Thinking Machines, Apache-2.0) is a 26.4B MoE with 3.4B active parameters. Its middle 12 of 24 layers run three times, so each token costs about 5.4B active. We ran Unsloth's UD-Q4_K_XL (16.4 GiB) with its DSpark draft head, on Unsloth's llama.cpp fork (b12588) through ai-swap, at 262k context. Sampling follows the model card: temperature 1.0 and no truncation.
+
+**Engine: ROCm, not Vulkan, for this model.** This reverses the rule for every other model here. Decode on a 600-token answer at 16k context:
+
+| build | decode | DSpark drafts accepted |
+|---|---:|---:|
+| Unsloth fork, Vulkan | 17.0 tok/s | |
+| Unsloth fork, Vulkan + DSpark | 14.6 tok/s | 46% |
+| Unsloth fork, ROCm | 33.4 tok/s | |
+| Unsloth fork, ROCm + DSpark | **37–46 tok/s** | 44% |
+
+Mainline llama.cpp (b12622) is no faster than the fork on Vulkan, and needs a different GGUF layout. Why Vulkan runs at half the speed wasn't investigated. At 262k context the ROCm build's default ubatch runs out of VRAM, so the model runs with `-ub 128`. That takes 27.8 GiB of VRAM in all and costs about 5% of prompt speed: 382 tok/s on a 29k-token prompt, against 400 tok/s at ubatch 512 and 196k context. The ai-swap entry comes from llama-config's `--server-bin`.
+
+**Results:**
+
+| | Inkling 2 Mini | ThinkingCap | qwen3.8-27b | strata |
+|---|---:|---:|---:|---:|
+| terminal-x3 | **100%** | 98.1% | 100% | 100% |
+| terminal-x3 time | 147 min | 17.5 min | 25.1 min | 50.8 min |
+| terminal-x3 avg turns | 9.1 | 5.6 | | |
+| LCB-60 at 64k | 68.3% (41/60, 56–79) | **88.3%** (78–94) | | 83.3% (32k) |
+| medium / hard solved | 23 / 18 | 29 / 24 | | 28 / 22 |
+| cut off | 13 | 4 | | 0 |
+| LCB-60 time | 725 min | 465 min | | 218 min |
+| generation @512 / @8k | 31.6 / 25.3 tok/s | 56.8 / 53.2 | 69.1 / 52.5 | 63.5 / 67.8 |
+| prompt @8k, time to first token | 521 tok/s, 16.0 s | 902, 9.5 s | 907, 9.5 s | 780, 10.5 s |
+
+- **It solves the agent tasks, slowly.** 100% on terminal-x3 with no bad tool calls, but 8× ThinkingCap's time. It takes more turns (9.1 against 5.6) and writes about 6,600 tokens per episode, as much as Gemma 4. Three episodes (`backup-rotation` twice, `fix-c-build` once) used all 30 turns and still passed.
+- **LiveCodeBench is well behind the 27Bs.** At 68.3% it is 20 points under ThinkingCap on the same 60 problems, and outside its interval. Every problem Inkling solved, ThinkingCap and strata also solved. 13 answers ran out of the 64k budget, 10 of them on hard problems. That fits the model card's warning about long reasoning loops. Its solved answers are short (median 11.4k tokens, against 13.5k for ThinkingCap), so the loss comes from the problems it never finishes.
+- **The speed advantage of a small active set doesn't show up here.** With 5.4B effective active parameters it should outrun the dense 27Bs. On this box it generates at half their speed (25 against 53 tok/s at 8k) and reads prompts at 60% of theirs. Even the ROCm build and DSpark don't close that gap. Draft acceptance falls to 42% at 8k context.
+- **Energy:** LCB-60 used 9.6 MJ, against ThinkingCap's 8.0 MJ, for 12 fewer solved problems.
+
+**Verdict: not adopted.** It is slower and weaker than ThinkingCap at every job tested, and doesn't fit any role in section 3. The ai-swap entry and files stay for now (16.4 GiB plus the draft head). Look at it again if the Vulkan build catches up with ROCm, or if a fine-tune fixes the reasoning loops.
 
 ---
 
@@ -282,6 +320,7 @@ Recommendations for this machine (R9700 32 GB, 90 GB RAM, llama-swap), based on 
 - **qwen3-coder-30b**: superseded on every metric except raw prompt speed.
 - **laguna-xs-2.1**: the weakest of the 2026 models, even when it finishes thinking. Revisit only if poolside ships an update.
 - **nemotron-bolt**: a good agent (92.6%), but it's the slowest llama.cpp model (45.7 tok/s at 8k) and took twice as long as Flint on terminal-x3 (85 vs 44 minutes) for a slightly lower score.
+- **inkling-2-mini**: 100% terminal-x3, but at 8× ThinkingCap's time and 68.3% on LCB-60 against ThinkingCap's 88.3%. It needs the ROCm build to reach even 25 tok/s at 8k ([Nov 21–22 section](#nov-2122-inkling-2-mini)).
 
 **Backend:** keep llama-swap on the Vulkan build.
 
