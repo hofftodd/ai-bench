@@ -104,7 +104,7 @@ backends:
     type: process
     start: ~/src/radiance/build/bin/radiance --config ~/models-test/radiance/{model_id}.yaml
     port: 8095
-    env: {RADIANCE_HOME: /home/thoffman/src/radiance/build/radiance_home, GPU_MAX_ALLOC_PERCENT: "100", GPU_MAX_HEAP_SIZE: "100"}
+    env: {RADIANCE_HOME: ~/src/radiance/build/radiance_home, GPU_MAX_ALLOC_PERCENT: "100", GPU_MAX_HEAP_SIZE: "100"}
     pre: ['curl -s -H "X-AI-Swap-Lock: $AI_SWAP_LOCK" -H "Authorization: Bearer $AI_SWAP_API_KEY" http://localhost:8080/unload']
     startup_timeout: 1800
   # The same engine at upstream main 5a80ee2f (2026-11-22), built in ~/src/radiance-main. Build 689f5545 above
@@ -114,7 +114,7 @@ backends:
     type: process
     start: ~/src/radiance-main/build/bin/radiance --config ~/models-test/radiance/{model_id}.yaml
     port: 8095
-    env: {RADIANCE_HOME: /home/thoffman/src/radiance-main/build/radiance_home, GPU_MAX_ALLOC_PERCENT: "100", GPU_MAX_HEAP_SIZE: "100"}
+    env: {RADIANCE_HOME: ~/src/radiance-main/build/radiance_home, GPU_MAX_ALLOC_PERCENT: "100", GPU_MAX_HEAP_SIZE: "100"}
     pre: ['curl -s -H "X-AI-Swap-Lock: $AI_SWAP_LOCK" -H "Authorization: Bearer $AI_SWAP_API_KEY" http://localhost:8080/unload']
     startup_timeout: 1800
 
