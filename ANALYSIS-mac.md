@@ -41,7 +41,18 @@ Queues 21–23 (`queues/mac-queue21.sh` … `mac-queue23.sh`), on oMLX 0.8.0.
 | Flash-Next with MTP | 512 / 8k | 250 / 154 | 162 / 128 |
 | flint, 8 in flight (total) | 1k | 351 | 347 |
 
-Decode got 3–35% slower; prefill is about the same; batched throughput is unchanged. The flint and MTP "before" runs are from Nov 6 on 0.7.3, so part of the gap may be the version, but the tuned Flash-Next pair is the same day and version. The quality numbers are unaffected. The tables now show the kernel build's speeds where a model was rerun. Production ai-swap uses the same install, so whether to keep the kernels is open in [TODO.md](TODO.md#tooling-and-housekeeping).
+Decode got 3–35% slower; prefill is about the same; batched throughput is unchanged. The flint and MTP "before" runs are from Nov 6 on 0.7.3, so part of the gap may be the version, but the tuned Flash-Next pair is the same day and version. The quality numbers are unaffected. The tables now show the kernel build's speeds where a model was rerun. Production ai-swap uses the same install, so whether to keep the kernels was left open.
+
+**Rechecked Nov 21 (`queues/mac-queue24.sh`): the kernels make no consistent difference, so they stay.** Three rounds of `speed-quick-eos` each way, alternating on the same install. For "without", the five native extensions were moved aside, which gives the fallback path a default Homebrew install takes. Means of three, decode tok/s at 512 / 8k:
+
+| model | with kernels | without |
+|---|---|---|
+| flint | 161.5 / 148.0 | 161.7 / 147.3 |
+| tuned Flash-Next (greedy) | 189 / 120.6 | 146 / 128.2 |
+| Flash-Next with MTP | 176 / 152.5 | 191 / 138.8 |
+| flint, 8 in flight (total) | 348 | 351 |
+
+Flint is identical. The two Flash-Next setups move in opposite directions at 8k (greedy 6% slower with kernels, MTP 10% faster), and their 512 figures swing by up to 95 tok/s between rounds of the same build, so neither is a real effect. Prompt speed is about equal (flint at 1k: 2,886 vs 2,766 tok/s). The Nov 20 drops came mostly from comparing against Nov 6 runs on oMLX 0.7.3 plus single-run noise. DeepSeek V4.1's oQh format needs the kernels, so the install keeps them.
 
 ### DeepSeek V4.1 Flash (oMLX, oQ2.5h)
 
