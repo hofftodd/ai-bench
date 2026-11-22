@@ -8,7 +8,7 @@ An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b1
 - Two benchmark problems distorted the top of the table, and both are now dealt with:
   - One terminal task was broken, capping everyone at 94.4%. With it fixed, **Strata and qwen3.8-27b score 100%** on terminal-x3 and ThinkingCap 98.1%. The suite is now saturated at the top and needs harder tasks.
   - LiveCodeBench at 32k mostly measured who finishes thinking in time. At 64k most reasoning models land at 63–67%, within noise of each other, while **ThinkingCap (80%)** and **Strata (83.3%)** pull clear.
-- **ThinkingCap is the best model that fits in VRAM:** 98.1% terminal-x3, 80% LiveCodeBench at 64k, and 28% fewer tokens than its base on hard problems. Rebuilt at the base's exact quant it scores the same 80%, so the gain comes from the fine-tune, not the quant. It's the new main-agent pick. **Strata** is still the strongest solver, but too slow for interactive work.
+- **ThinkingCap is the best model that fits in VRAM:** 98.1% terminal-x3, 80% LiveCodeBench at 64k (88.3% on the 60-problem sample), and 28% fewer tokens than its base on hard problems. Rebuilt at the base's exact quant it scores the same 80%, so the gain comes from the fine-tune, not the quant. It's the new main-agent pick. **Strata** (83.3% on the 60) is level with it on quality and finishes in half the time, but it's too slow to read prompts for interactive work.
 - **Qwen3.8 thinks at maximum effort by default.** Its chat template defaults to `reasoning_effort: xhigh`. At `medium`, qwen3.8-27b finished terminal-x3 twice as fast with 62% fewer tokens (92.6% vs 100%), but LiveCodeBench didn't change at all.
 - **Give reasoning models at least 64k output tokens.** At 32k, a third or more of hard answers are cut off.
 - **Stay on Vulkan.** ROCm is 13–25% slower at generation for most models.
@@ -305,15 +305,16 @@ Not worth the time: more HumanEval+ (every model scores 95–100%), and more run
 
 ## 3. Which models to use, and for what
 
-Recommendations for this machine (R9700 32 GB, 90 GB RAM, llama-swap), based on the current numbers and the caveats above:
+Recommendations for this machine (R9700 32 GB, 90 GB RAM, ai-swap), based on the current numbers and the caveats above. Updated Nov 22 with the 60-problem LiveCodeBench runs, Radiance and Inkling 2 Mini:
 
 | role | recommendation | why | runner-up |
 |---|---|---|---|
-| **Main coding agent** (Claude Code via `claude-local`, opencode, pi) | **ThinkingCap** (thinkingcap-qwen3.8-27b) | 98.1% terminal-x3 with the fewest turns (5.6), 80% LCB at 64k (second only to Strata), no bad tool calls, and ~30% fewer tokens than its base. Set the client's max output to 64k or more. | qwen3.8-27b |
-| **Hard algorithmic problems, "think harder" escalation** | **strata** | Best LCB (83.3%, twice), never ran out of tokens, solved 73–80% of hard problems. But it's slow to read prompts and needs ~60 GB RAM and the whole GPU, so use it for batch jobs or stubborn problems, not as the always-on agent. | ThinkingCap with a 64k budget |
+| **Main coding agent** (Claude Code via `claude-local`, opencode, pi) | **ThinkingCap** (thinkingcap-qwen3.8-27b) | 98.1% terminal-x3 with the fewest turns (5.6), 88.3% on LCB-60 at 64k (80% on the 30), level with Strata, no bad tool calls, and ~30% fewer tokens than its base. Set the client's max output to 64k or more. | qwen3.8-27b |
+| **Hard algorithmic problems, "think harder" escalation** | **strata** | 83.3% on both the 30 and the 60, never cut off, and the 60 in 218 min against ThinkingCap's 465: level on quality, so the case for it is time. But it's slow to read prompts and needs ~60 GB RAM and the whole GPU, so use it for batch jobs or stubborn problems, not as the always-on agent. | ThinkingCap with a 64k budget |
 | **One-shot code generation** (write this function or script, no tool loop) | **gemma-4-26b** | 67–73% LCB with the shortest answers (17k tokens) and the fastest runs (1.4 h for 30 problems at 64k, vs 4.5 h for ThinkingCap). Use ThinkingCap instead when the problem is hard. | flint |
 | **Fast all-round coder** (good quality, high throughput) | **flint** | Good at everything: 94.4% terminal, 63.3% LCB, 2,650 tok/s prompt processing, 79 tok/s generation, never ran out of turns. The best choice when qwen3.8's ~52 tok/s feels slow. | qwen3.6-35b-a3b |
-| **Quick edits, short agent tasks** | **qwen3.8-27b at `reasoning_effort: medium`** | 92.6% terminal-x3 in 11.7 minutes, as fast end-to-end as qwen3.6 and 11 points better, because it writes 62% fewer tokens. Needs the client to send `chat_template_kwargs: {"reasoning_effort": "medium"}`, or a llama-swap alias that sets it. | qwen3.6-35b-a3b (11.3 min, 81.5%, 95 tok/s, smaller VRAM footprint) |
+| **Quick edits, short agent tasks** | **qwen3.8-27b at `reasoning_effort: medium`** | 92.6% terminal-x3 in 11.7 minutes, as fast end-to-end as qwen3.6 and 11 points better, because it writes 62% fewer tokens. Needs the client to send `chat_template_kwargs: {"reasoning_effort": "medium"}`, or an ai-swap alias that sets it. | qwen3.6-35b-a3b (11.3 min, 81.5%, 95 tok/s, smaller VRAM footprint) |
+| **Several agents at once, batch jobs** (outside ai-swap) | **qwen3.8-27b IQ4R on Radiance** | Radiance batches: 246 tok/s in total with 8 requests (about 31 each), where llama.cpp gives four agents 48 tok/s between them. 80.0% on LCB-60 at 64k in 145 min. It takes the whole card and isn't behind ai-swap, so it has to be started on purpose (Radiance section above). | the Mac (flint on oMLX) |
 | **Long-context reading** (big logs, whole-repo questions) | **nemotron-lightning** | The only model fitted to a 786k context. Fastest generation (131 tok/s), with fast prompt processing (3,000 tok/s at 8k). Weaker on hard agentic tasks (74.1%), so use it for reading, not multi-step changes. | — |
 | **Small, background model** (titles, summaries, classification) | **gemma-4-e4b** (keep) | Fastest prompt processing measured (2.0 s to first token at 8k) and 85 tok/s, with 100% on HumanEval. Too weak for agent work (3 of 6 quick terminal tasks), which isn't its job. | — |
 
@@ -321,11 +322,12 @@ Recommendations for this machine (R9700 32 GB, 90 GB RAM, llama-swap), based on 
 - **qwen3-coder-30b**: superseded on every metric except raw prompt speed.
 - **laguna-xs-2.1**: the weakest of the 2026 models, even when it finishes thinking. Revisit only if poolside ships an update.
 - **nemotron-bolt**: a good agent (92.6%), but it's the slowest llama.cpp model (45.7 tok/s at 8k) and took twice as long as Flint on terminal-x3 (85 vs 44 minutes) for a slightly lower score.
+- **Flash-Next on Radiance**: 13.5 tok/s at 8k and 22 s to the first token, against strata's 67.8 tok/s and 10.5 s. Bound by the card's PCIe link. Strata stays.
 - **inkling-2-mini**: 100% terminal-x3, but at 8× ThinkingCap's time and 68.3% on LCB-60 against ThinkingCap's 88.3%. It needs the ROCm build to reach even 25 tok/s at 8k ([Nov 21–22 section](#nov-2122-inkling-2-mini)).
 
-**Backend:** keep llama-swap on the Vulkan build.
+**Backend:** keep ai-swap on the Vulkan build. Radiance is the exception for batched work, run outside ai-swap; whether to give ai-swap a Radiance engine is open ([TODO.md](TODO.md)).
 
 **Waiting on:**
 - **DeepSeek V4 Flash (284B-A13B)** scores near the top on terminal-x3 (96.3%) but runs at ~9 tok/s with 197 s to first token at 8k, so it can't be an interactive agent. With a 64k budget it reaches 80.0% on LiveCodeBench, close to Strata's 83.3%, but the run took 27 hours against Strata's 1.9. **Not recommended on this machine:** Strata is as good and over 10× faster. It would only make sense on hardware that holds it in VRAM.
-- **Inkling Small (276B-A12B)** could too, but it needs mainline llama.cpp support first.
+- **Inkling Small (276B-A12B)** still needs llama.cpp support here. On the Mac (oMLX) it scored 70% at 32k and 64k, below flint, so it isn't worth a RAM-offloaded run on this box.
 - **gpt-oss-20b** is configured but hasn't been run.
