@@ -1,6 +1,6 @@
 # TODO
 
-Open work, known caveats in the current results, and ideas we deliberately left for later. Last reviewed 2026-11-20.
+Open work, known caveats in the current results, and ideas we deliberately left for later. Last reviewed 2026-11-21.
 
 ## Done: the Oct 25–26 queue
 
@@ -52,6 +52,16 @@ The 284B mixture-of-experts model that [DwarfStar](https://github.com/antirez/ds
 
 The R9700 sits behind a 4-lane link. The root port supports 16 GT/s, but the link runs at 8 GT/s (PCIe 3.0, ~3.9 GB/s). `logs/pcie-link.log` shows 8 GT/s even at 93–96% GPU load, so it isn't idle power-saving: the link trains at half speed. Model loading and every RAM-offloaded model (Strata, Inkling, DeepSeek) are slower than they need to be.
 - [ ] Check the BIOS PCIe speed setting and the OCuLink/riser cable; a marginal cable often makes a link fall back to Gen3. `sudo lspci -vv -s 03:00.0` shows `LnkSta` and whether the card itself reports a downgrade.
+
+### Radiance
+
+A second engine on the R9700: C++/HIP, its own `.rad` containers, request batching. Built in `~/src/radiance` (689f5545) and `~/src/radiance-main` (5a80ee2f) against ROCm 7.1.1; containers and per-model YAMLs in `~/models-test/radiance/`; backend `radiance` and `--hardware r9700-radiance` in `bench.yaml`. See ANALYSIS.md (Nov 21–22) and RESULTS-radiance.md.
+- [x] **Qwen3.8-27B IQ4R-V4:** speed, concurrency up to 16, LiveCodeBench 30 at 32k/64k and 60 at 64k. *Done 2026-11-21: 78.7 tok/s at 8k, 246 tok/s total across 8 requests, 80% LCB-60 at 64k in 145 min.*
+- [x] **Flash-Next IQR-V4 (113 GiB):** loads only on upstream main 5a80ee2f (backend `radiance-main`); build 689f5545 refuses it. *Speed done 2026-11-22: 13.5 tok/s at 8k, 378 tok/s prompt, 28 tok/s total at 4 requests, against strata's 67.8 / 780: slower than strata, so no reason to switch. livecodebench-60 stopped by choice 2026-11-22 after ~2 h 20 min with no problems recorded (it needed ~12 h); the speed results already answer the strata question.*
+- [ ] **flint-iq8r (37.9 GiB) and qwen3.6-35b-a3b-iq8r (35 GiB):** entries are in `bench.yaml`, containers not downloaded. flint needs `placement: expert_tiered` on one card. Worth it for the concurrency question on a MoE model.
+- [ ] **Whether to put Radiance behind ai-swap** (for example a 27B or Flash-Next entry for parallel executors). ai-swap's production config was left unchanged; it would need ai-swap to start and stop a non-llama.cpp server that holds the whole card.
+- [ ] **A ThinkingCap container,** if a safetensors release exists, via `rad-convert`: ThinkingCap leads on LiveCodeBench, and Radiance doesn't read GGUF.
+- No Gemma 4 26B-A4B container exists (Radiance supports Gemma 4 31B and 12B only).
 
 ## Blocked
 

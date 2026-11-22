@@ -94,6 +94,30 @@ backends:
     type: ollama
     base_url: http://localhost:11434
 
+  # Radiance (https://codeberg.org/StillDeadcode/radiance, C++/HIP with RDNA4 gfx1201 kernels), built
+  # from source in ~/src/radiance against the box's Ubuntu ROCm 7.1.1 (the README asks for 7.2). It
+  # serves its own .rad containers, not GGUF; they live in ~/models-test/radiance/ (outside ~/models,
+  # which llama-config scans), with one YAML there per model, named after the model id. One card
+  # (tp 1), port 8095. ai-swap is emptied first, as for strata.
+  # Run with --hardware r9700-radiance so its rows stay apart from llama.cpp's.
+  radiance:
+    type: process
+    start: ~/src/radiance/build/bin/radiance --config ~/models-test/radiance/{model_id}.yaml
+    port: 8095
+    env: {RADIANCE_HOME: ~/src/radiance/build/radiance_home, GPU_MAX_ALLOC_PERCENT: "100", GPU_MAX_HEAP_SIZE: "100"}
+    pre: ['curl -s -H "X-AI-Swap-Lock: $AI_SWAP_LOCK" -H "Authorization: Bearer $AI_SWAP_API_KEY" http://localhost:8080/unload']
+    startup_timeout: 1800
+  # The same engine at upstream main 5a80ee2f (2026-11-22), built in ~/src/radiance-main. Build 689f5545 above
+  # refuses the Flash-Next IQR-V4 container on one card (its rotated-int8 trunk down-projections get only the CPU
+  # kernel: "shape this kernel does not serve"); this build loads it.
+  radiance-main:
+    type: process
+    start: ~/src/radiance-main/build/bin/radiance --config ~/models-test/radiance/{model_id}.yaml
+    port: 8095
+    env: {RADIANCE_HOME: ~/src/radiance-main/build/radiance_home, GPU_MAX_ALLOC_PERCENT: "100", GPU_MAX_HEAP_SIZE: "100"}
+    pre: ['curl -s -H "X-AI-Swap-Lock: $AI_SWAP_LOCK" -H "Authorization: Bearer $AI_SWAP_API_KEY" http://localhost:8080/unload']
+    startup_timeout: 1800
+
 models:
   nemotron-lightning: &nemotron_lightning
     backend: swap
@@ -284,6 +308,28 @@ models:
     max_tokens: 32768
     params: {temperature: 1.0, top_p: 1.0}       # OpenAI's gpt-oss defaults
 
+  # Radiance twins of the llama.cpp models (backend radiance above; keys from Radiance's README rows, tp 1).
+  qwen3.8-27b-iq4r:            # StillDeadcode/qwen3.8-27b-iqr-v4, IQ4R-V4 (16.4 GiB), max-num-seqs 32
+    <<: *qwen38_27b
+    backend: radiance
+    id: qwen3.8-27b-iq4r
+    gguf: null
+  flashnext-radiance:          # StillDeadcode/qwen3.8-next-flash-iqr-v4 (113 GiB), experts tiered to RAM
+    backend: radiance-main
+    id: flashnext-radiance
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20}   # as avalon (Qwen's thinking defaults)
+  flint-iq8r:                  # StillDeadcode/flint-iq8r (37.9 GiB); not downloaded yet, needs a YAML
+    <<: *flint
+    backend: radiance
+    id: flint-iq8r
+    gguf: null
+  qwen3.6-35b-a3b-iq8r:        # StillDeadcode/qwen3.6-35b-a3b-iq8r (35 GiB); not downloaded yet, needs a YAML
+    <<: *qwen36_35b_a3b
+    backend: radiance
+    id: qwen3.6-35b-a3b-iq8r
+    gguf: null
+
 suites:
   speed:
     type: throughput
@@ -301,6 +347,12 @@ suites:
     gen_tokens: 256
     repeats: 2
     concurrency: [1, 2, 4]
+  speed-concurrent-wide:       # Radiance batches up to max-num-seqs: does total decode keep scaling past 4?
+    type: throughput
+    prompt_tokens: [1024]
+    gen_tokens: 256
+    repeats: 2
+    concurrency: [1, 2, 4, 8, 16]
   humaneval:
     type: humaneval-plus
     concurrency: 4            # llama-swap's servers have 4 slots

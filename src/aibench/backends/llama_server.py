@@ -48,7 +48,7 @@ class ProcessBackend(OpenAIBackend):
         self.health_url = health_url
         self.detached = detached
         self.pre, self.post = pre or [], post or []
-        self.env = {k: str(v) for k, v in (env or {}).items()}
+        self.env = {k: os.path.expanduser(str(v)) for k, v in (env or {}).items()}  # ~ in paths, as in start
         self.startup_timeout = startup_timeout
         self.proc: asyncio.subprocess.Process | None = None
         self.log_path: Path | None = None
