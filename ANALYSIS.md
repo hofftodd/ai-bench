@@ -1,6 +1,6 @@
 # Analysis of the October 2026 runs
 
-An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), DeepSeek V4 Flash on Oct 27–30, and ThinkingCap at its base model's quant on Oct 30–31. Last updated 2026-11-21; the Nov 20–21 runs are in their own section below. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
+An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), DeepSeek V4 Flash on Oct 27–30, and ThinkingCap at its base model's quant on Oct 30–31. Last updated 2026-11-21; the Nov 20–21 runs and the Nov 21 Radiance evaluation are in their own sections below. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
 
 **In short:**
 
@@ -13,6 +13,70 @@ An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b1
 - **Give reasoning models at least 64k output tokens.** At 32k, a third or more of hard answers are cut off.
 - **Stay on Vulkan.** ROCm is 13–25% slower at generation for most models.
 - **DeepSeek V4 Flash is accurate but very slow here, and doesn't beat Strata.** 96.3% terminal-x3 and 97.5% HumanEval+, but at ~9 tok/s it took 250 minutes for terminal-x3 (14× ThinkingCap). LiveCodeBench: 60.0% at 32k and **80.0% at 64k**, level with ThinkingCap and within noise of Strata's 83.3%. But the 64k run took 27 hours, against 1.9 hours for Strata.
+- **Radiance, a second engine, runs the 27B 2–4× faster at the same or better quality, and batches.** Its own IQ4R container generates 78.7 tok/s at 8k (llama.cpp 52.5), reads prompts 3× faster, decodes 246 tok/s in total across 8 requests (llama.cpp barely gains from parallel requests), and scores 80% on LiveCodeBench-60 at 64k in 145 min. Flash-Next on Radiance is still to run.
+
+---
+
+## Nov 21: Radiance, a second engine on the R9700
+
+[Radiance](https://codeberg.org/StillDeadcode/radiance) 2.2.0 is a C++/HIP inference server with its own kernels for RDNA4 (gfx1201). It serves its own `.rad` containers, batches requests (up to `max-num-seqs`), and ships speculative drafters inside the container. The question was whether it fixes the two weak spots: concurrency (four agents share one agent's throughput on llama.cpp) and Flash-Next's speed under strata. Runs are labeled `--hardware r9700-radiance` (backend `radiance` in `bench.yaml`, one card, `tp: 1`, ai-swap emptied first).
+
+**So far: on the 27B it is a clear win, at the same or better quality.** Flash-Next has not run yet (below).
+
+**Setup:**
+
+- **Build:** from source in `~/src/radiance` (commit 689f5545) against the box's Ubuntu ROCm 7.1.1 (hipcc 7.1, clang 21), with `-DRAD_GPU_TARGETS=gfx1201`. The README asks for ROCm 7.2 or 10.1, but 7.1.1 built and ran everything tried. No Docker, no system ROCm change. It skips the 780M iGPU on its own.
+- **Tests:** three of the fast tests failed: an io_uring negative test, a hash of a generated header, and `r4d_emu_attn`, the CPU emulation of the attention kernel, which hit general-protection faults (`journalctl -k`, 09:18–09:20; CPU code, not the GPU). The GPU self-tests (`r4d_selftest`, `kbench`) passed.
+- **Startup warning:** at every start, Radiance warns that the card's link runs at 8 GT/s x4 (see [TODO.md](TODO.md#pcie-link)).
+- **Containers:** they come from Hugging Face, not GGUF. They live in `~/models-test/radiance/`, outside `~/models`, with one Radiance YAML per model.
+- **Downloads:** the box is on WiFi (1.5–4 MB/s from Hugging Face). Flash-Next's 113 GiB container took most of the day, split between the box and a relay through the wired Mac.
+- **What it can't run:** GGUF files, and block-FP8 and MXFP4 checkpoints. It has no Gemma 4 26B-A4B (only 31B and 12B), so there is no Gemma comparison.
+- **Kernel log:** no amdgpu timeouts, resets or MES errors through about 6 h of GPU runs, only "workqueue … hogged CPU" warnings.
+
+**Qwen3.8-27B, IQ4R-V4 (16.4 GiB, `StillDeadcode/qwen3.8-27b-iqr-v4`):** it carries a DFlash2 drafter (speculation depth 7) and serves up to 32 sequences in a 200k context, with an int8 KV cache.
+
+| | Radiance 27B IQ4R | llama.cpp qwen3.8-27b UD-Q4_K_XL | ThinkingCap Q4_K_M |
+|---|---|---|---|
+| prompt 512 / 8k tok/s | 2373 / 2874 | 476 / 907 | 551 / 902 |
+| generation @512 / @8k tok/s | 166 / 78.7 | 69.1 / 52.5 | 56.8 / 53.2 |
+| time to first token @8k | 2.86 s | 9.46 s | 9.53 s |
+
+Generation varies with how many drafted tokens are accepted: the same 1k-prompt test gave 192 tok/s at 74.5% acceptance and 127 tok/s at 42.6%.
+
+**Concurrency** (total decode across requests, 1k prompts, 256 tokens each):
+
+| requests | 1 | 2 | 4 | 8 | 16 |
+|---|---|---|---|---|---|
+| Radiance 27B | 127–192 | 150–164 | 206–213 | **246** | 210 |
+| llama.cpp ThinkingCap | 44.7 | | 48.3 | | |
+| llama.cpp flint | 83.5 | | 101 | | |
+
+Batching does what llama.cpp's slots don't. At 4 requests each one still gets about 52 tok/s, the same as a single request on llama.cpp. At 8 the total peaks at 246 tok/s, about 31 each. At 16, prompt processing falls to 184 tok/s and time to first token rises to 8.7 s, so 8 is the useful limit. Several executors on the R9700 is now a real option, at least for the 27B.
+
+**LiveCodeBench:**
+
+| run | Radiance 27B | llama.cpp qwen3.8-27b | reference |
+|---|---|---|---|
+| 30 problems, 32k | 56.7% (12 cut off), **42.6 min** | 56.7% (12 cut off), 181 min | |
+| 30 problems, 64k | **73.3%** (7 cut off), 82.9 min | 66.7% (9 cut off) | ThinkingCap 80% |
+| 60 problems, 64k | 80.0% (48/60: 28 medium, 20 hard; 10 cut off), **145 min** | not run | ThinkingCap 88.3% in 465 min; strata 83.3% (32k) in 218 min |
+
+At 32k the score is identical to llama.cpp's, at 4.3× the speed. At 64k it is 2 problems ahead on 30 (well within noise). On the 60, it is 5 problems behind ThinkingCap (4 of them hard) and 2 behind strata. The intervals overlap, but ThinkingCap's fine-tune keeps its lead. In time, Radiance runs the 60 problems at 64k in a third of ThinkingCap's time and two-thirds of strata's.
+
+**What this means:**
+
+- **For batch LiveCodeBench-style jobs and parallel executors,** Radiance's 27B is the fastest good option on this box: 80% on the 60 in 2.4 h.
+- **No Radiance ThinkingCap yet:** Radiance doesn't read GGUF. `rad-convert` builds containers from Hugging Face safetensors checkpoints, so a ThinkingCap container would need its safetensors release (not tried).
+- **ai-swap is unchanged:** Radiance has an OpenAI-compatible API, but it holds the whole card and serves its own containers. Putting it behind ai-swap is a separate decision (TODO.md).
+
+**Flash-Next (`StillDeadcode/qwen3.8-next-flash-iqr-v4`, 113 GiB), not run yet.** The container downloaded and checksummed at 18:38. It waits for the Inkling 2 Mini queue, which has the GPU tonight. Its config is the README's one-card row (`~/models-test/radiance/flashnext-radiance.yaml`):
+
+- 42 GiB of experts pinned in RAM (`placement: expert_tiered`, `host-pool-mib: 43000`)
+- 4 sequences, int8 KV, MTP depth 3, 4096-token prefill steps
+
+The 47.7 GiB n-gram table doesn't also fit in RAM, so it should be read from disk. On one card every prefill step copies the pooled experts across the x4 Gen3 link. That's the same weakness strata has, so prompt speed is the number to watch.
+
+`~/models-test/radiance/after-inkling.sh` runs speed-quick, both concurrency suites and LiveCodeBench-60 on it when the Inkling queue ends. Strata's marks to beat: LCB-60 83.3% in 218 min, prompt 780 and generation 67.8 tok/s at 8k. A follow-up to this PR will fill in the results.
 
 ---
 
