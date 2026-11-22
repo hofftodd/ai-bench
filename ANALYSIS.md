@@ -13,6 +13,7 @@ An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b1
 - **Give reasoning models at least 64k output tokens.** At 32k, a third or more of hard answers are cut off.
 - **Stay on Vulkan.** ROCm is 13–25% slower at generation for most models.
 - **DeepSeek V4 Flash is accurate but very slow here, and doesn't beat Strata.** 96.3% terminal-x3 and 97.5% HumanEval+, but at ~9 tok/s it took 250 minutes for terminal-x3 (14× ThinkingCap). LiveCodeBench: 60.0% at 32k and **80.0% at 64k**, level with ThinkingCap and within noise of Strata's 83.3%. But the 64k run took 27 hours, against 1.9 hours for Strata.
+- **Inkling 2 Mini is not a pick.** It scores 100% on terminal-x3 but takes 8× ThinkingCap's time, and gets 68.3% on LCB-60 at 64k against ThinkingCap's 88.3%. It generates at 25 tok/s at 8k, and only on Unsloth's ROCm fork; Vulkan halves that.
 
 ---
 
