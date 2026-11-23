@@ -1,6 +1,6 @@
 # Analysis of the October 2026 runs
 
-An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), DeepSeek V4 Flash on Oct 27–30, and ThinkingCap at its base model's quant on Oct 30–31. Last updated 2026-11-22; the Nov 20–21 runs, Inkling 2 Mini (Nov 21–22) and the Radiance evaluation (Nov 21–22) are in their own sections below. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
+An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), DeepSeek V4 Flash on Oct 27–30, and ThinkingCap at its base model's quant on Oct 30–31. Last updated 2026-11-23; the Nov 20–21 runs, Inkling 2 Mini (Nov 21–22) and the Radiance evaluation (Nov 21–22) are in their own sections below. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
 
 **In short:**
 
@@ -13,7 +13,7 @@ An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b1
 - **Give reasoning models at least 64k output tokens.** At 32k, a third or more of hard answers are cut off.
 - **Stay on Vulkan.** ROCm is 13–25% slower at generation for most models.
 - **DeepSeek V4 Flash is accurate but very slow here, and doesn't beat Strata.** 96.3% terminal-x3 and 97.5% HumanEval+, but at ~9 tok/s it took 250 minutes for terminal-x3 (14× ThinkingCap). LiveCodeBench: 60.0% at 32k and **80.0% at 64k**, level with ThinkingCap and within noise of Strata's 83.3%. But the 64k run took 27 hours, against 1.9 hours for Strata.
-- **Inkling 2 Mini is not a pick.** It scores 100% on terminal-x3 but takes 8× ThinkingCap's time, and gets 68.3% on LCB-60 at 64k against ThinkingCap's 88.3%. It generates at 25 tok/s at 8k, and only on Unsloth's ROCm fork; Vulkan halves that.
+- **Inkling 2 Mini is not a pick.** It scores 100% on terminal-x3 but takes 8× ThinkingCap's time, and gets 68.3% on LCB-60 at 64k against ThinkingCap's 88.3%. It generates at about 35 tok/s on code (the speed suite's random-word prompt shows 25), and only on Unsloth's ROCm fork; Vulkan halves that.
 - **Radiance, a second engine, runs the 27B 2–4× faster at the same or better quality, and batches.** Its own IQ4R container generates 78.7 tok/s at 8k (llama.cpp 52.5), reads prompts 3× faster, decodes 246 tok/s in total across 8 requests (llama.cpp barely gains from parallel requests), and scores 80% on LiveCodeBench-60 at 64k in 145 min. Flash-Next on Radiance is 5× slower than strata (13.5 tok/s against 67.8 at 8k); the experts it streams over the x4 link hold it back.
 
 ---
@@ -49,8 +49,23 @@ Mainline llama.cpp (b12622) is no faster than the fork on Vulkan, and needs a di
 
 - **It solves the agent tasks, slowly.** 100% on terminal-x3 with no bad tool calls, but 8× ThinkingCap's time. It takes more turns (9.1 against 5.6) and writes about 6,600 tokens per episode, as much as Gemma 4. Three episodes (`backup-rotation` twice, `fix-c-build` once) used all 30 turns and still passed.
 - **LiveCodeBench is well behind the 27Bs.** At 68.3% it is 20 points under ThinkingCap on the same 60 problems, and outside its interval. Every problem Inkling solved, ThinkingCap and strata also solved. 13 answers ran out of the 64k budget, 10 of them on hard problems. That fits the model card's warning about long reasoning loops. Its solved answers are short (median 11.4k tokens, against 13.5k for ThinkingCap), so the loss comes from the problems it never finishes.
-- **The speed advantage of a small active set doesn't show up here.** With 5.4B effective active parameters it should outrun the dense 27Bs. On this box it generates at half their speed (25 against 53 tok/s at 8k) and reads prompts at 60% of theirs. Even the ROCm build and DSpark don't close that gap. Draft acceptance falls to 42% at 8k context.
+- **The speed advantage of a small active set doesn't show up here.** With 5.4B effective active parameters it should outrun the dense 27Bs. On this box it generates at about 35 tok/s on code (25 in the table, see below), against ThinkingCap's 53, and reads prompts at 60% of their speed.
+- **The table's 25 tok/s understates it.** The speed suite's prompt is random words plus "write a story". DSpark accepts only ~35% of its drafts on that, so it runs *slower* than no draft head at all (24–27 against 31 tok/s). On an 11k-token code-review prompt DSpark accepts 51–65% and the model generates at 31–43 tok/s. ThinkingCap's speed number also uses its draft head on the same prompt, so the gap on real work may be a little smaller than the table shows, but not closed.
 - **Energy:** LCB-60 used 9.6 MJ, against ThinkingCap's 8.0 MJ, for 12 fewer solved problems.
+
+**Settings check (Nov 23).** To rule out a bad ai-swap entry, we ran direct llama-server variants on the 11k-token code prompt (256 generated tokens, three runs each):
+
+| settings | generation | prompt |
+|---|---:|---:|
+| ai-swap entry: 262k, `-ub 128`, q8_0 KV, DSpark, 4 slots | 31–35 tok/s | 459–465 tok/s |
+| same, 1 slot | 33–38 | 527–533 |
+| 64k, q8_0 KV, 1 slot | 33–40 | **691** |
+| 64k, F16 KV, 1 slot | 37–43 | 509 |
+| 64k, F16 KV, `-b 2048 -ub 1024` | 34–39 | 530 |
+| 128k, F16 KV | 33–39 | 510 |
+| 64k, F16 KV, no DSpark | 32 | 528 |
+
+Generation is the same within noise in every variant. Only prompt speed moves: 64k context with q8_0 KV reads ~30% faster than the 262k entry, and 4 slots cost ~13%. The F16 KV cache recommended for the RX 7900 XTX buys nothing here. Our numbers also line up with outside results: about 40 tok/s after scaling a reported 60 tok/s on the 7900 XTX by memory bandwidth, and a published 65.1% on LiveCodeBench v6 against our 68.3%. So the model is set up correctly; it's just slower and weaker than ThinkingCap. The ai-swap entry was left as is.
 
 **Verdict: not adopted.** It is slower and weaker than ThinkingCap at every job tested, and doesn't fit any role in section 3. The ai-swap entry and files stay for now (16.4 GiB plus the draft head). Look at it again if the Vulkan build catches up with ROCm, or if a fine-tune fixes the reasoning loops.
 
@@ -403,7 +418,7 @@ Recommendations for this machine (R9700 32 GB, 90 GB RAM, ai-swap), based on the
 - **laguna-xs-2.1**: the weakest of the 2026 models, even when it finishes thinking. Revisit only if poolside ships an update.
 - **nemotron-bolt**: a good agent (92.6%), but it's the slowest llama.cpp model (45.7 tok/s at 8k) and took twice as long as Flint on terminal-x3 (85 vs 44 minutes) for a slightly lower score.
 - **Flash-Next on Radiance**: 13.5 tok/s at 8k and 22 s to the first token, against strata's 67.8 tok/s and 10.5 s. Bound by the card's PCIe link. Strata stays.
-- **inkling-2-mini**: 100% terminal-x3, but at 8× ThinkingCap's time and 68.3% on LCB-60 against ThinkingCap's 88.3%. It needs the ROCm build to reach even 25 tok/s at 8k ([Nov 21–22 section](#nov-2122-inkling-2-mini)).
+- **inkling-2-mini**: 100% terminal-x3, but at 8× ThinkingCap's time and 68.3% on LCB-60 against ThinkingCap's 88.3%. It needs the ROCm build to reach even ~35 tok/s on code ([Nov 21–22 section](#nov-2122-inkling-2-mini)).
 
 **Backend:** keep ai-swap on the Vulkan build. Radiance is the exception for batched work, run outside ai-swap; whether to give ai-swap a Radiance engine is open ([TODO.md](TODO.md)).
 
