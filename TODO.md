@@ -53,6 +53,12 @@ The 284B mixture-of-experts model that [DwarfStar](https://github.com/antirez/ds
 The R9700 sits behind a 4-lane link. The root port supports 16 GT/s, but the link runs at 8 GT/s (PCIe 3.0, ~3.9 GB/s). `logs/pcie-link.log` shows 8 GT/s even at 93–96% GPU load, so it isn't idle power-saving: the link trains at half speed. Model loading and every RAM-offloaded model (Strata, Inkling, DeepSeek) are slower than they need to be.
 - [ ] Check the BIOS PCIe speed setting and the OCuLink/riser cable; a marginal cable often makes a link fall back to Gen3. `sudo lspci -vv -s 03:00.0` shows `LnkSta` and whether the card itself reports a downgrade.
 
+### Inkling 2 Mini (2026-11-24)
+
+- [x] **Newer engines and reasoning effort medium** (`queues/r9700-inkling2-tune.sh`). Every engine decodes at 31–35 tok/s; medium scored 96.3% terminal-x3 in 38.5 min and 22/30 LCB at 64k (high: 147 min, 17/30). ai-swap now defaults it to medium via `models.conf` (ANALYSIS.md, Nov 23–24).
+- [ ] **Project Maya's `maya-ik2` HIP engine** wasn't tried: cloning and running its installer on mini-ubuntu needs a manual go-ahead (it needs rocWMMA headers for ROCm 7.1.1).
+- [ ] **Mainline Vulkan for Inkling** reads long prompts 25% faster than the fork, but needs the Mainline_Support GGUF and drops DSpark. Switch only if Inkling takes long-context jobs.
+
 ### Radiance
 
 A second engine on the R9700: C++/HIP, its own `.rad` containers, request batching. Built in `~/src/radiance` (689f5545) and `~/src/radiance-main` (5a80ee2f) against ROCm 7.1.1; containers and per-model YAMLs in `~/models-test/radiance/`; backend `radiance` and `--hardware r9700-radiance` in `bench.yaml`. See ANALYSIS.md (Nov 21–22) and RESULTS-radiance.md.
@@ -106,6 +112,11 @@ A second engine on the R9700: C++/HIP, its own `.rad` containers, request batchi
 - [ ] `terminal-text` hasn't been run. It would show whether any model's terminal failures come from llama-swap's tool-call parsing rather than the model itself.
 
 ## Mac Studio (future)
+
+- [x] **flint on Splash with several agents** (queue 25, 2026-11-23): 453 against oMLX's 358 tok/s in total at 8 in flight. ai-swap's `flint` moved to Splash on 2026-11-24 (`flint-omlx` kept). flint on LCB-60 at 64k: 70.0%.
+- [x] **Ripple DFlash2 drafter** (queue 26, 2026-11-24): b12192 aborted on load; on llama.cpp master (`~/src/llama.cpp-1124`, `metal-1124`) with Ricursive's drafter converted there, 41.3 / 28.8 tok/s at 512 / 8k against 21.8 / 21.1, and no gain with 8 in flight (39.5 vs 39.6). Still not a pick.
+- [x] **flint on Splash through ai-swap, `terminal-x3`** (`swap-flint`, queue 26): 94.4% in 3.6 min, no bad calls; only `kill-rogue` failed (3 of 3, against 2 of 3 on oMLX).
+- [ ] **Hy4-Flash** (Tencent, 220B-A12B, DFly2 drafter): needs oMLX ≥ 0.8.1 (#5463; we're on 0.8.0) and `Jundot/Hy4-flash-oQ4h-mtp` (132 GB). Upgrade oMLX (rebuild the kernels, recheck Flash-Next), then `speed-quick-eos`, `terminal-x3`, `livecodebench-60-64k`. Mainly a research/document candidate; Tencent points coding at the bigger Hy4. llama.cpp support is PR #32517.
 
 The first queue (32k, 64k, 128k) is done. Since then (2026-11-06): Qwen3.8-Flash-Next on llama.cpp and Inkling-Small on oMLX, both in [ANALYSIS-mac.md](ANALYSIS-mac.md).
 

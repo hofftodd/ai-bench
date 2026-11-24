@@ -102,6 +102,16 @@ backends:
            --cache-type-k, q8_0, --cache-type-v, q8_0]
     startup_timeout: 1800
 
+  # llama.cpp master 2e779d5e7 (2026-11-24), for Ripple's DFlash2 drafter: b12192 predates Ripple support
+  # (#31904, Nov 15) and aborts loading it (GGML_ASSERT(obj_new) in build_dflash2_selector).
+  metal-1124:
+    type: llama-server
+    binary: ~/src/llama.cpp-1124/build/bin/llama-server
+    port: 5896
+    args: [--n-gpu-layers, 99, --flash-attn, auto, --jinja, --parallel, 4,
+           --cache-type-k, q8_0, --cache-type-v, q8_0]
+    startup_timeout: 1800
+
   # llama.cpp at ggml-org/llama.cpp#32187 (a45f662, unmerged: "model : add Inkling 2 (stacked on
   # Inkling 1)", by unsloth), built as a worktree in ~/src/llama.cpp-inkling2-32187 for Inkling 2 Small;
   # no release has the inkling2 architecture yet. It is the PR unsloth's GGUFs were made with: #32217
@@ -176,6 +186,35 @@ models:
     max_tokens: 32768
     params: {temperature: 1.0, top_p: 0.95}
     args: [--ctx-size, 540672]        # 4 slots x 135,168 (see qwen3.8-27b)
+  # The same with Ricursive's DFlash2 drafter (ashbash's GGUF conversion, Q8_0, 4.3 GB). llama.cpp loads
+  # it as a dflash drafter but applies RoPE to draft layer 4 and gives the full-attention layer the whole
+  # context (the recipe: no RoPE there, last 16,384 tokens), so acceptance may be below the reference.
+  # Output is the target's either way. keep_reasoning: the template re-inserts reasoning_content.
+  # Ripple on llama.cpp master (metal-1124), alone and with Ricursive's DFlash2 drafter converted by that
+  # build's convert_hf_to_gguf.py (#32363 fixed the drafter's NoPE metadata after ashbash's Nov 6 GGUF).
+  ripple-65b-m1124:
+    backend: metal-1124
+    id: ripple-65b
+    gguf: ~/models/ripple-65b/Ripple-65B-Preview-AD-Q4_K_M.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, keep_reasoning: true}
+    args: [--ctx-size, 540672]
+  ripple-65b-dflash2:
+    backend: metal-1124
+    id: ripple-65b
+    gguf: ~/models/ripple-65b/Ripple-65B-Preview-AD-Q4_K_M.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, keep_reasoning: true}
+    args: [--ctx-size, 540672, --model-draft, ~/models/ripple-65b/Ripple-65B-Preview-DFlash2-m1124-Q8_0.gguf,
+           --spec-type, draft-dflash2]
+  ripple-65b-dflash:
+    backend: metal-b12192
+    id: ripple-65b
+    gguf: ~/models/ripple-65b/Ripple-65B-Preview-AD-Q4_K_M.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, keep_reasoning: true}
+    args: [--ctx-size, 540672, --model-draft, ~/models/ripple-65b/Ripple-65B-Preview-DFlash2-Q8_0.gguf,
+           --spec-type, draft-dflash]
 
   # Inkling 2 Small (Thinking Machines, Nov 2026): 594B total / 17B active MoE (384 experts, top 8),
   # hybrid local/global attention, Apache-2.0. unsloth's UD-Q2_K_XL (205 GB, 6 shards); the 4-bit
@@ -367,6 +406,12 @@ models:
   # Flash-Next as agents get it: through the Mac's ai-swap (model qwen3.8-flash-next, oQ4e without MTP), with
   # greedy and the 24,576-token budget set as oMLX model settings (force_sampling, thinking_budget_tokens) rather
   # than per request. It sends an agent's usual sampling on purpose: force_sampling should override it.
+  # flint as agents get it from ai-swap since 2026-11-24: Splash with the DFlash2 drafter, bf16 activations.
+  swap-flint:
+    backend: swap
+    id: flint
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20, keep_reasoning: true}
   swap-qwen3.8-flash-next:
     backend: swap
     id: qwen3.8-flash-next

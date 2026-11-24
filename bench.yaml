@@ -218,6 +218,20 @@ models:
     gguf: ~/models/inkling-2-mini/Inkling-2-Mini-UD-Q4_K_XL.gguf
     max_tokens: 32768
     params: {temperature: 1.0, top_p: 1.0, top_k: 0, min_p: 0.0}
+  # Inkling 2 Mini at reasoning_effort medium (0.7; the template's default is high, 0.9). It wrote 3.7x
+  # qwen3.8-27b's tokens per terminal-x3 episode and had 13 of 60 LCB answers cut off at 64k at high.
+  # Sent per request, like qwen3.8-27b-medium; same ai-swap entry as inkling-2-mini.
+  inkling-2-mini-medium:
+    backend: swap
+    id: inkling-2-mini
+    gguf: ~/models/inkling-2-mini/Inkling-2-Mini-UD-Q4_K_XL.gguf
+    max_tokens: 32768
+    params:
+      temperature: 1.0
+      top_p: 1.0
+      top_k: 0
+      min_p: 0.0
+      extra_body: {chat_template_kwargs: {reasoning_effort: medium}}
   # ThinkingCap at reasoning_effort medium (TODO: does it keep its terminal-x3 score with less thinking,
   # as qwen3.8-27b-medium did: 92.6% in 11.7 min?). Sent per request, like qwen3.8-27b-medium.
   thinkingcap-qwen3.8-27b-medium:
