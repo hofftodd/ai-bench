@@ -62,6 +62,8 @@ One problem lower and mixed on speed: within noise either way. There's no reason
 - **It's the fastest Inkling we have:** twice Strata on the R9700 and four to five times llama.cpp. The 213 tok/s reported for an M5 Max (on a pre-release build) didn't reproduce here; 135–158 tok/s is in line with its 85–149 for M5 Pro chips.
 - **In ai-swap from Nov 25:** `inkling-2-mini`, on demand next to flint (28 GB budget, `--default-reasoning-effort medium`, binary overridden to `~/src/splash-1.7.2/bin/splash`). A check through ai-swap loaded it and answered in 33 s from cold. With flint resident there's still room for Flash-Next (68 of 220 GB used with both small models in).
 
+**Against qwen3.8-27b**, the other ~20 GB model here: Inkling is faster (135 tok/s at 8k against 112 on oMLX with MTP and 58 on llama.cpp, and 1.3 s to the first token against 4.4–8.0) and level at 64k, going by the R9700's runs on the same 30 problems (22 against 20). But qwen3.8-27b reaches 83–87% at 128k, and Inkling has never had 128k. Queue 28 (`queues/mac-queue28.sh`) runs Inkling on the 30 at 64k and at 128k on the Mac to settle it, plus `terminal-x3` through ai-swap and `terminal-hard`.
+
 **Verdict: a second executor, not a replacement.** flint stays the default for speed; Inkling is a different model at the same level, useful as a second pair of hands or a second opinion on executor work. Hard problems still go to tuned Flash-Next (88% on the same 60).
 
 ---

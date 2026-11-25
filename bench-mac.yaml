@@ -36,11 +36,18 @@ outputs:
         Qwen3.8-Flash-Next on oMLX with greedy decoding and a 24,576-token thinking budget, as ai-swap serves it
         (qwen3.8-flash-next). 90% at 32k, 53 of 60 on LCB-60, ties ds4-q4 in a quarter to half the time. 127 tok/s at 8k
         with MTP as benchmarked; ai-swap serves it without MTP (~102 tok/s, better with several agents).
-    - model: omlx-flint
+    - model: splash-flint-bf16
       role: Executors, fast all-round
       note: >-
-        flint on oMLX: 77% at 64k in 48 min, 96.3% terminal-x3, 161 tok/s at 8k and 351 tok/s in total with
-        8 requests in flight, from 23 GB.
+        flint on Splash 1.7.0 with bf16 activations, ai-swap's `flint` since Nov 24: 66.7% at 32k (70% on LCB-60
+        at 64k on oMLX), 94.4% terminal-x3 through ai-swap in 3.6 min, 260 tok/s at 8k and 453 in total with
+        8 in flight, from 40 GB. `flint-omlx` stays as the fallback.
+    - model: splash172-inkling-2-mini-medium
+      role: Second executor
+      note: >-
+        Inkling 2 Mini at medium effort on Splash 1.7.2, ai-swap's `inkling-2-mini` (on demand) since Nov 25:
+        70% on LCB-60 at 64k (flint's score), 98.1% terminal-x3 in 5 min, 135 tok/s at 8k and 267 in total
+        with 8 in flight, from ~20 GB.
     - model: ds4-q4
       role: Second opinion, escalation
       note: >-
@@ -62,6 +69,7 @@ compare:
     sushi-qwen3.8-flash-next-4bpw: strata
     qwen3.8-flash-next: strata
     omlx-qwen3.8-flash-next-mtp: strata
+    splash172-inkling-2-mini-medium: inkling-2-mini-medium
   notes: >-
     **R9700:** Radeon AI PRO R9700 (32 GB) on llama.cpp b11850 (Vulkan), with Strata for Qwen3.8-Flash-Next.
     **Mac:** Mac Studio M5 Ultra (256 GB unified memory) on llama.cpp b12098 (Metal), DwarfStar, sushi and oMLX (MLX).
@@ -422,6 +430,13 @@ models:
     id: flint
     max_tokens: 32768
     params: {temperature: 1.0, top_p: 0.95, top_k: 20, keep_reasoning: true}
+  # Inkling 2 Mini as agents get it from ai-swap since 2026-11-25 (Splash 1.7.2, default effort medium set by
+  # ai-swap's --default-reasoning-effort, so no effort is sent here).
+  swap-inkling-2-mini:
+    backend: swap
+    id: inkling-2-mini
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 1.0, top_k: 0, min_p: 0.0}
   swap-qwen3.8-flash-next:
     backend: swap
     id: qwen3.8-flash-next
@@ -497,7 +512,9 @@ models:
       top_k: 0
       min_p: 0.0
       extra_body: {reasoning_effort: medium}
-    args: [--activations, bf16]
+    # 160K window (the backend's 128K comes first; the later flag wins) so livecodebench-128k fits prompt + answer.
+    # The GGUF's trained context is 1M.
+    args: [--activations, bf16, --max-context, 160K]
   splash-qwen3.8-flash-next:
     backend: splash
     id: unsloth/Qwen3.8-Flash-Next-GGUF
