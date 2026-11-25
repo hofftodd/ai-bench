@@ -221,6 +221,23 @@ models:
   # Inkling 2 Mini at reasoning_effort medium (0.7; the template's default is high, 0.9). It wrote 3.7x
   # qwen3.8-27b's tokens per terminal-x3 episode and had 13 of 60 LCB answers cut off at 64k at high.
   # Sent per request, like qwen3.8-27b-medium; same ai-swap entry as inkling-2-mini.
+  # Inkling 2 Mini on Strata's own engine (strata-inkling 0.1.67, Strata 0.2.21; 2026-11-24), SQ-20 pack
+  # (19.35 GB, bit-exact with the official weights), DSpark Block-8 built in. 3 requests at 80k: 4 at 128k needs
+  # 34.6 GB of KV alone. Strata's Inkling default effort is "none", so medium is sent explicitly. Strata also caps
+  # Inkling's thinking by level by default (medium: 4,096 tokens, then it forces the answer): 43.3% LCB that way, so
+  # reasoning_budget_tokens: 0 turns the cap off, as llama.cpp and Splash run it.
+  strata-inkling-2-mini-medium:
+    backend: strata
+    id: inkling-2-mini-sq-20
+    max_tokens: 32768
+    params:
+      temperature: 1.0
+      top_p: 1.0
+      top_k: 0
+      min_p: 0.0
+      extra_body: {chat_template_kwargs: {reasoning_effort: medium}, reasoning_budget_tokens: 0}
+    args: [--family, inkling-2-mini, --model, sq-20, --context, 80k, --vision, "off", --parallel, "3", --tune, skip]
+
   inkling-2-mini-medium:
     backend: swap
     id: inkling-2-mini

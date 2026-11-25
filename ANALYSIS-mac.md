@@ -1,11 +1,12 @@
 # Analysis of the Mac Studio runs
 
-The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3–6, 2026: three of the R9700's models on llama.cpp (Metal), DeepSeek V4 Flash on [DwarfStar](https://github.com/antirez/ds4) (`ds4`), three large MoE models on [sushi](https://github.com/beamivalice/sushi) (MLX), then Qwen3.8-Flash-Next on llama.cpp and on [oMLX](https://github.com/jundot/omlx) (MLX), and Inkling-Small on oMLX. Nov 18–20 added Strata's settings on oMLX (a thinking budget and greedy decoding), 60-problem LiveCodeBench runs, Laguna S 2.1 and the [Splash](https://github.com/incoai/splash) engine; Nov 20 added DeepSeek V4.1 Flash on oMLX 0.8.0, Nov 21 a recheck of oMLX's native kernels, and Nov 23–24 flint on Splash with several agents and Ripple's DFlash2 drafter. The numbers are in [RESULTS-mac.md](RESULTS-mac.md); [ANALYSIS-compare.md](ANALYSIS-compare.md) sets them against the R9700. Last updated 2026-11-24.
+The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3–6, 2026: three of the R9700's models on llama.cpp (Metal), DeepSeek V4 Flash on [DwarfStar](https://github.com/antirez/ds4) (`ds4`), three large MoE models on [sushi](https://github.com/beamivalice/sushi) (MLX), then Qwen3.8-Flash-Next on llama.cpp and on [oMLX](https://github.com/jundot/omlx) (MLX), and Inkling-Small on oMLX. Nov 18–20 added Strata's settings on oMLX (a thinking budget and greedy decoding), 60-problem LiveCodeBench runs, Laguna S 2.1 and the [Splash](https://github.com/incoai/splash) engine; Nov 20 added DeepSeek V4.1 Flash on oMLX 0.8.0, Nov 21 a recheck of oMLX's native kernels, Nov 23–24 flint on Splash with several agents and Ripple's DFlash2 drafter, and Nov 24–25 Splash 1.7.2 with Inkling 2 Mini. The numbers are in [RESULTS-mac.md](RESULTS-mac.md); [ANALYSIS-compare.md](ANALYSIS-compare.md) sets them against the R9700. Last updated 2026-11-25.
 
-> **[Nov 23–24](#nov-2324-flint-moves-to-splash-ripples-drafter) is the newest:** flint moves to Splash in ai-swap, flint on the 60-problem LiveCodeBench, and Ripple's DFlash2 drafter (1.4–1.9× on one request, no change batched). **[Nov 20](#nov-20-deepseek-v41-omlxs-kernels-inkling-2):** DeepSeek V4.1 Flash, oMLX's native kernels, and why Inkling 2 Small doesn't run here. **Section 0 (Nov 18–20)** changed the picks in section 4. Section 1 covers LiveCodeBench at 64k and 128k, plus later runs: Qwen3.8-Flash-Next on llama.cpp and oMLX, Inkling-Small on oMLX, [Ripple-65B Preview](#ripple-65b-preview), the [oMLX verdict](#should-we-lean-on-omlx) with its 6-bit check, and the [terminal suite](#tool-calling-the-terminal-suite). Sections 2–3 are from the first (32k) sweep; section 4 has the picks. The kernels stay (rechecked Nov 21). What's next is in [section 3](#3-what-to-run-next-on-this-machine).
+> **[Nov 24–25](#nov-2425-splash-172-and-inkling-2-mini) is the newest:** Inkling 2 Mini on Splash 1.7.2 matches flint's LiveCodeBench score and joins ai-swap; flint stays on 1.7.0. **[Nov 23–24](#nov-2324-flint-moves-to-splash-ripples-drafter):** flint moves to Splash in ai-swap, flint on the 60-problem LiveCodeBench, and Ripple's DFlash2 drafter (1.4–1.9× on one request, no change batched). **[Nov 20](#nov-20-deepseek-v41-omlxs-kernels-inkling-2):** DeepSeek V4.1 Flash, oMLX's native kernels, and why Inkling 2 Small doesn't run here. **Section 0 (Nov 18–20)** changed the picks in section 4. Section 1 covers LiveCodeBench at 64k and 128k, plus later runs: Qwen3.8-Flash-Next on llama.cpp and oMLX, Inkling-Small on oMLX, [Ripple-65B Preview](#ripple-65b-preview), the [oMLX verdict](#should-we-lean-on-omlx) with its 6-bit check, and the [terminal suite](#tool-calling-the-terminal-suite). Sections 2–3 are from the first (32k) sweep; section 4 has the picks. The kernels stay (rechecked Nov 21). What's next is in [section 3](#3-what-to-run-next-on-this-machine).
 
 **In short:**
 
+- **Inkling 2 Mini on Splash 1.7.2 is a second fast executor** (Nov 25). At medium effort it scored 70.0% on the 60 at 64k (flint's score) and 98.1% on terminal-x3 in 5 minutes, at 135 tok/s at 8k and 267 in total with 8 in flight, from ~20 GB. That's half flint's speed and four times what the R9700 gets from llama.cpp. ai-swap serves it on demand as `inkling-2-mini`, beside flint.
 - **ai-swap's flint now runs on Splash** (Nov 24). It stays ahead of oMLX with several agents at once: 453 tok/s in total with 8 in flight against 358, 263 tok/s alone against 161, and 0.11 s to the first token at 1k against 0.37. Same LiveCodeBench score with bf16 activations. oMLX stays configured as `flint-omlx`.
 - **flint is the fast pick, not the strong one:** 70.0% on the 60 at 64k (42 of 60), against 88% for tuned Flash-Next and ThinkingCap on the same problems.
 - **DeepSeek V4.1 Flash on oMLX is the Mac's highest LiveCodeBench score, but not a pick.** 90.0% on the 60 at 64k (54 of 60, 2 cut off) in 169 minutes, and 88.3% at 32k with the thinking budget in 109. That's one problem above tuned Flash-Next (88.3% at 32k) and two above ds4-q4 (86.7% at 64k): a tie inside the 95% intervals (about 80–95%). It decodes at 51 tok/s, holds ~207 GB with its Engram tables on the SSD, and leaves room for nothing else. See [Nov 20](#nov-20-deepseek-v41-omlxs-kernels-inkling-2).
@@ -26,6 +27,42 @@ The first sweep on the Mac Studio (Apple M5 Ultra, 256 GB unified memory), Nov 3
 - **Everything that runs on both machines scores the same here.** qwen3.8-27b and DeepSeek V4 Flash got exactly their R9700 LiveCodeBench scores (56.7% and 60.0%), with nearly the same number of cut-off answers. The harness and the Metal build are sound.
 - **Qwen3.8-Flash-Next is the fastest model here,** on sushi or oMLX: 138 tok/s at 8k on sushi and 96–154 on oMLX with MTP, about 2 s to first token. sushi's runs are shortest (under 32 minutes for LiveCodeBench) because its answers are short (about 7k tokens), which is also why it scores lower.
 - **No throttling.** macOS logged no thermal or performance warnings over about 70 hours of near-continuous load, and llama-bench speeds before and after long runs agree within 2%.
+
+---
+
+## Nov 24–25: Splash 1.7.2 and Inkling 2 Mini
+
+Queue `queues/mac-queue27.sh`. Splash 1.7.2 added Inkling 2 Mini (Unsloth's GGUFs, with Inco's DFlash2 drafter `incoai/Inkling-2-Mini-DFlash2`), but it also changes MoE outputs (each expert's `.scale` now applies), so it was unpacked side by side in `~/src/splash-1.7.2` (backend `splash-172`). Production flint stayed on Homebrew's 1.7.0. Inkling ran Unsloth's UD-Q4_K_XL, the quant the R9700 runs, at medium effort (`reasoning_effort: medium`), temperature 1.0, `--activations bf16`.
+
+### flint on 1.7.2
+
+| splash-flint-bf16 | 1.7.0 | 1.7.2 |
+|---|---:|---:|
+| generation @512 | 270 tok/s | **299** |
+| generation @8k | **260** | 238 |
+| prompt @8k | 12,798 tok/s | 12,573 |
+| first token @8k | 0.66 s | 0.68 s |
+| LCB, the 30 at 32k | 66.7% (7 cut off) | 63.3% (7 cut off) |
+
+One problem lower and mixed on speed: within noise either way. There's no reason to move production flint. terminal-x3 and concurrency weren't rerun on 1.7.2.
+
+### Inkling 2 Mini on Splash
+
+| | **Splash 1.7.2, Mac** | flint, Splash 1.7.0 | Inkling, llama.cpp fork, R9700 | Inkling, Strata, R9700 |
+|---|---:|---:|---:|---:|
+| generation @512 | 158 tok/s | 270 | 31.6 | 76.2 |
+| generation @8k | 135 | 260 | 25.3 | 64.6 |
+| total, 8 in flight | 267 | 453 | | |
+| first token @8k | 1.32 s | 0.66 s | 16.0 s | 10.2 s |
+| terminal-x3 | **98.1%** in 5.1 min | 94.4% in 3.6 min (through ai-swap) | 96.3% in 38.5 min | 100% in 48.4 min |
+| LCB-60 at 64k | **70.0%** (42/60) in 85 min | 70.0% (oMLX, 91 min) | 68.3% at effort high | |
+| memory | ~20 GB | ~40 GB | | |
+
+- **It's flint's equal on quality** on both suites (one terminal-x3 episode either way is noise), at about half the decode speed and half the memory.
+- **It's the fastest Inkling we have:** twice Strata on the R9700 and four to five times llama.cpp. The 213 tok/s reported for an M5 Max (on a pre-release build) didn't reproduce here; 135–158 tok/s is in line with its 85–149 for M5 Pro chips.
+- **In ai-swap from Nov 25:** `inkling-2-mini`, on demand next to flint (28 GB budget, `--default-reasoning-effort medium`, binary overridden to `~/src/splash-1.7.2/bin/splash`). A check through ai-swap loaded it and answered in 33 s from cold. With flint resident there's still room for Flash-Next (68 of 220 GB used with both small models in).
+
+**Verdict: a second executor, not a replacement.** flint stays the default for speed; Inkling is a different model at the same level, useful as a second pair of hands or a second opinion on executor work. Hard problems still go to tuned Flash-Next (88% on the same 60).
 
 ---
 
@@ -460,6 +497,7 @@ Updated Nov 22. Done since the first sweep: the 60-problem runs (ds4-q4 86.7% at
 | Second opinion, escalation | **DeepSeek V4 Flash on DwarfStar (ds4-q4)** | 86.7% on the 60 at 64k (93.3% on the 30), 100% on terminal-x3, but 4× slower than tuned Flash-Next. A different model, so it fails on different problems. Give it a 64k output budget. |
 | Hard problems, small footprint | **qwen3.8-27b** (oMLX or llama.cpp) | 83–87% at 128k from 17.5 GB, but 39k-token answers; give it a 128k budget. oMLX doubles generation at 8k. The 4-bit oQ4e is enough; 6 bits added nothing. |
 | Strong and fast, executors | **flint on Splash** (ai-swap's `flint` since Nov 24) | 70.0% on the 60 at 64k (77–80% on the 30); 263 tok/s alone and 453 tok/s in total with 8 in flight, 0.11 s to first token. 94.4% on terminal-x3 through ai-swap in 3.6 min (oMLX: 96.3% in 7.3). Fallback: `flint-omlx` (161 / 358 tok/s). |
+| Second executor | **Inkling 2 Mini on Splash 1.7.2** (ai-swap's `inkling-2-mini`, on demand, since Nov 25) | 70.0% on the 60 at 64k (flint's score), 98.1% terminal-x3 in 5 min; 135 tok/s at 8k and 267 in total with 8 in flight, from ~20 GB. A different model at flint's level. |
 | Fastest, interactive | **Qwen3.8-Flash-Next on oMLX** | 102 tok/s at 8k (up to 154 with MTP for single requests), 2.0 s TTFT, and the hard-problem quality above once tuned. MTP off when several agents share it. |
 | Worth watching | Splash for Flash-Next | Flash-Next at oMLX's quality with 40% shorter LiveCodeBench runs. flint already runs on Splash in ai-swap. |
 | Worth watching | DeepSeek V4.1 Flash (oMLX) | 90.0% on the 60 at 64k, the Mac's top score but a tie within noise; 51 tok/s and ~207 GB resident, so nothing else fits beside it. Needs `--memory-guard aggressive`. |

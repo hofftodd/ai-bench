@@ -166,6 +166,16 @@ backends:
     health_url: http://127.0.0.1:8020/ready
     startup_timeout: 3600     # the first start prepares (links and checks) the GGUF
 
+  # Splash 1.7.2 (2026-11-24: Inkling 2 Mini with DFlash2) unpacked beside Homebrew's 1.7.0, which serves
+  # ai-swap's flint. The wrapper gives it its own HOME so its links, runtime and caches stay apart.
+  splash-172:
+    type: process
+    start: ~/src/splash-1.7.2/bin/splash serve --model {model_id} --model-dir {gguf} --host {host} --port {port}
+           --language-only --idle-release off --no-webui --max-context 128K
+    port: 8031                # 8021 answers on this Mac (a service lsof doesn't show)
+    health_url: http://127.0.0.1:8031/ready
+    startup_timeout: 3600
+
 models:
   qwen3.8-27b:
     backend: metal
@@ -463,6 +473,30 @@ models:
     gguf: ~/models/flint/flint-UD-Q4_K_XL.gguf
     max_tokens: 32768
     params: {temperature: 1.0, top_p: 0.95, top_k: 20, keep_reasoning: true}
+    args: [--activations, bf16]
+  # flint on Splash 1.7.2, to check the upgrade before ai-swap moves: 1.7.2 applies each routed expert's
+  # .scale in every MoE format and starts MoE SSD caches cold.
+  splash172-flint-bf16:
+    backend: splash-172
+    id: unsloth/flint-GGUF
+    gguf: ~/models/flint/flint-UD-Q4_K_XL.gguf
+    max_tokens: 32768
+    params: {temperature: 1.0, top_p: 0.95, top_k: 20, keep_reasoning: true}
+    args: [--activations, bf16]
+  # Inkling 2 Mini on Splash 1.7.2 with Inco's DFlash2 draft (incoai/Inkling-2-Mini-DFlash2, in the HF cache).
+  # Unsloth's current root-layout UD-Q4_K_XL (re-uploaded; the R9700's copy is the older root layout).
+  # Model-card sampling; reasoning effort medium as on the R9700 (Splash reads the top-level field).
+  splash172-inkling-2-mini-medium:
+    backend: splash-172
+    id: unsloth/Inkling-2-Mini-GGUF
+    gguf: ~/models/inkling-2-mini/Inkling-2-Mini-UD-Q4_K_XL.gguf
+    max_tokens: 32768
+    params:
+      temperature: 1.0
+      top_p: 1.0
+      top_k: 0
+      min_p: 0.0
+      extra_body: {reasoning_effort: medium}
     args: [--activations, bf16]
   splash-qwen3.8-flash-next:
     backend: splash

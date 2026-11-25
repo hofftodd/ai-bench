@@ -1,6 +1,6 @@
 # Analysis of the October 2026 runs
 
-An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), DeepSeek V4 Flash on Oct 27–30, and ThinkingCap at its base model's quant on Oct 30–31. Last updated 2026-11-24; the Nov 20–21 runs, Inkling 2 Mini (Nov 21–22, retuned Nov 23–24) and the Radiance evaluation (Nov 21–22) are in their own sections below. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
+An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b11850 on Vulkan), quick profile on Oct 23 and overnight profile (terminal-x3 + LiveCodeBench) on Oct 23–24, plus the follow-up runs of Oct 25–26 (fixed terminal task, ROCm comparison, baselines, LiveCodeBench at 64k, a Strata re-run and qwen3.8 at medium reasoning effort), DeepSeek V4 Flash on Oct 27–30, and ThinkingCap at its base model's quant on Oct 30–31. Last updated 2026-11-25; the Nov 20–21 runs, Inkling 2 Mini (Nov 21–22, retuned Nov 23–24, on Strata Nov 24–25) and the Radiance evaluation (Nov 21–22) are in their own sections below. The numbers are in [RESULTS.md](RESULTS.md). Open work is tracked in [TODO.md](TODO.md).
 
 **In short:**
 
@@ -13,8 +13,30 @@ An analysis of the first full sweep: 10 models on the R9700 (32 GB, llama.cpp b1
 - **Give reasoning models at least 64k output tokens.** At 32k, a third or more of hard answers are cut off.
 - **Stay on Vulkan.** ROCm is 13–25% slower at generation for most models.
 - **DeepSeek V4 Flash is accurate but very slow here, and doesn't beat Strata.** 96.3% terminal-x3 and 97.5% HumanEval+, but at ~9 tok/s it took 250 minutes for terminal-x3 (14× ThinkingCap). LiveCodeBench: 60.0% at 32k and **80.0% at 64k**, level with ThinkingCap and within noise of Strata's 83.3%. But the 64k run took 27 hours, against 1.9 hours for Strata.
-- **Inkling 2 Mini runs at reasoning effort medium now, and is about qwen3.8-27b's equal there, but not faster.** Its default (high) writes 3.7× qwen3.8-27b's tokens: 100% terminal-x3 in 147 min and 17 of 30 LCB problems at 64k. At medium: 96.3% in 38.5 min and 22 of 30, against qwen3.8-27b's 20 and ThinkingCap's 24 on the same problems. Every engine decodes it at 31–35 tok/s, so the 54–90 tok/s reported elsewhere doesn't reproduce here. ThinkingCap stays the pick.
+- **Inkling 2 Mini runs at reasoning effort medium now, and is about qwen3.8-27b's equal there, but not faster.** Its default (high) writes 3.7× qwen3.8-27b's tokens: 100% terminal-x3 in 147 min and 17 of 30 LCB problems at 64k. At medium: 96.3% in 38.5 min and 22 of 30, against qwen3.8-27b's 20 and ThinkingCap's 24 on the same problems. Every engine decodes it at 31–35 tok/s, so the 54–90 tok/s reported elsewhere doesn't reproduce here. **Strata's new Inkling engine doubles that** (64.6 tok/s at 8k, Nov 24–25) with 100% terminal-x3 and 20 of 30 LCB, once its default thinking cap is off. ThinkingCap stays the pick.
 - **Radiance, a second engine, runs the 27B 2–4× faster at the same or better quality, and batches.** Its own IQ4R container generates 78.7 tok/s at 8k (llama.cpp 52.5), reads prompts 3× faster, decodes 246 tok/s in total across 8 requests (llama.cpp barely gains from parallel requests), and scores 80% on LiveCodeBench-60 at 64k in 145 min. Flash-Next on Radiance is 5× slower than strata (13.5 tok/s against 67.8 at 8k); the experts it streams over the x4 link hold it back.
+
+---
+
+## Nov 24–25: Inkling 2 Mini on Strata
+
+Queues `queues/r9700-inkling-strata.sh` and `queues/r9700-inkling-strata-nocap.sh`. Strata 0.2.19 added a separate engine for Inkling 2 Mini (`strata-inkling`). We updated Strata to 0.2.21, which moves the engine from 0.1.48 to 0.1.67 (the old one is kept for rollback), and ran Strata's own SQ-20 pack (19.35 GB, bit-exact with the official weights in Strata's tests) with its built-in DSpark drafter. Settings: 3 requests at 80k context (4 at 128k needs 34.6 GB for the KV cache alone), and effort medium sent explicitly, because Strata's default for Inkling is `none`.
+
+| | llama.cpp fork through ai-swap (Nov 21–24) | **Strata SQ-20** |
+|---|---:|---:|
+| generation @512 | 31.6 tok/s | **76.2** |
+| generation @8k | 25.3 (31–35 in the engine check) | **64.6** |
+| prompt @8k | 521 tok/s | 795 |
+| first token @8k | 16.0 s | 10.2 s |
+| terminal-x3, medium | 96.3% in 38.5 min | **100%** in 48.4 min |
+| LCB, the 30 at 64k, medium | 22/30 (73.3%) in 344 min | 20/30 (66.7%) in 111 min |
+
+- **Strata doubles Inkling's speed on this card.** It's the 2× that no llama.cpp build gave, from Strata's kernels: the whole model is in VRAM, so expert offload doesn't come into it. That matches Strata's own 7900 XT figure (66 tok/s).
+- **Strata caps thinking by default.** At medium it stops thinking at 4,096 tokens and forces the answer; the first LCB run scored **43.3%** that way, with 12 of 30 answers cut at 4,127 tokens. `reasoning_budget_tokens: 0` turns the cap off, as llama.cpp and Splash run it. With the cap off: 20 of 30, two problems under llama.cpp's 22, within noise at temperature 1.0, in a third of the time.
+- **terminal-x3 took longer despite the faster decode** (48 against 38.5 min). Likely the long-context prompt reading (10 s to the first token at 8k) adding up over many turns, but not investigated.
+- **Flash-Next on the new engine:** the update also moved the R9700's `strata` pick. Generation at 8k went from 67.8 to **77.2 tok/s** (`speed-quick`), and LiveCodeBench on the 30 at 32k gave the same **83.3%** with none cut off, in 104 min against 115 (`queues/r9700-strata-0167-recheck.sh`). The update is safe to keep.
+
+**Verdict: Inkling is worth keeping in mind on Strata, but it's still not a pick.** ThinkingCap scores 24 of 30 and finishes terminal-x3 in 17.5 min. On the Mac, Splash 1.7.2 runs the same model at twice Strata's speed ([ANALYSIS-mac.md, Nov 24–25](ANALYSIS-mac.md#nov-2425-splash-172-and-inkling-2-mini)).
 
 ---
 
@@ -455,7 +477,7 @@ Recommendations for this machine (R9700 32 GB, 90 GB RAM, ai-swap), based on the
 - **laguna-xs-2.1**: the weakest of the 2026 models, even when it finishes thinking. Revisit only if poolside ships an update.
 - **nemotron-bolt**: a good agent (92.6%), but it's the slowest llama.cpp model (45.7 tok/s at 8k) and took twice as long as Flint on terminal-x3 (85 vs 44 minutes) for a slightly lower score.
 - **Flash-Next on Radiance**: 13.5 tok/s at 8k and 22 s to the first token, against strata's 67.8 tok/s and 10.5 s. Bound by the card's PCIe link. Strata stays.
-- **inkling-2-mini**: at reasoning effort medium (now ai-swap's default for it) 96.3% terminal-x3 in 38.5 min and 22 of 30 LCB problems at 64k: level with qwen3.8-27b, below ThinkingCap (24, and 17.5 min), and no faster at 31–35 tok/s on any engine ([Nov 23–24 section](#nov-2324-inkling-2-mini-retuned)).
+- **inkling-2-mini**: at reasoning effort medium (now ai-swap's default for it) 96.3% terminal-x3 in 38.5 min and 22 of 30 LCB problems at 64k: level with qwen3.8-27b, below ThinkingCap (24, and 17.5 min), and no faster at 31–35 tok/s on any llama.cpp engine ([Nov 23–24 section](#nov-2324-inkling-2-mini-retuned)). Strata's engine runs it at 64.6 tok/s with 100% terminal-x3 and 20 of 30, still behind ThinkingCap ([Nov 24–25](#nov-2425-inkling-2-mini-on-strata)).
 
 **Backend:** keep ai-swap on the Vulkan build. Radiance is the exception for batched work, run outside ai-swap; whether to give ai-swap a Radiance engine is open ([TODO.md](TODO.md)).
 
