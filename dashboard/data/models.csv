@@ -2,7 +2,7 @@ model,backend,quant,overnight_order,overnight_status,lcb_truncated,terminal_x3_p
 nemotron-lightning,swap,UD-Q4_K_XL,1,done,16,74.1,50,19.0,101,66.7,2,,,100,97.5,83.3,1460,126,3023,131,2.85,3892,122,,,,,,,,70.4,54,30,30,,,,5,Long-context reading,"The only model fitted to a 786k context; fastest generation (131 tok/s). Reading, not multi-step changes."
 nemotron-bolt,swap,,2,done,17,92.6,46.7,85.2,137,63.3,10,,,100,97.5,100,563,53.6,1093,45.7,7.84,,,,,,,,,,87.0,54,30,30,,,,,,
 flint,swap,UD-Q4_K_XL,3,done,7,94.4,63.3,43.8,77.6,66.7,1,,,100,97.5,83.3,2649,83.0,3391,79.3,2.54,3388,91.4,,,,,,100,42.2,88.9,54,30,30,,,,3,Fast all-round coder,"94.4% terminal-x3, 2,650 tok/s prompt processing and 79 tok/s generation; never ran out of turns."
-strata,strata,IQ3_S,4,done,0,100,83.3,50.8,115,,,,,95,95,100,158,63.5,780,67.8,10.5,,,83.3,0,218,,,,,100,54,30,,,60,,2,"Hard problems, escalation","Best LCB here (83.3% twice), never cut off. Slow to read prompts and needs ~60 GB RAM and the whole GPU: batch jobs and stubborn problems, not the always-on agent."
+strata,strata,IQ3_S,4,done,0,100,83.3,50.8,104,,,,,95,95,100,131,66.7,475,77.2,17.3,,,83.3,0,218,,,,,100,54,30,,,60,,2,"Hard problems, escalation","Best LCB here (83.3% twice), never cut off. Slow to read prompts and needs ~60 GB RAM and the whole GPU: batch jobs and stubborn problems, not the always-on agent."
 qwen3.8-27b,swap,UD-Q4_K_XL,5,done,12,100,56.7,25.1,181,66.7,9,,,100,97.5,100,476,69.1,907,52.5,9.46,1098,28.7,,,,,,100,49.3,94.4,54,30,30,,,,,,
 qwen3.6-35b-a3b,swap,UD-Q4_K_XL,6,done,16,81.5,50,11.3,104,66.7,7,,,97.5,95,66.7,2089,97.3,3559,95.1,2.46,3662,104,,,,,,,,79.6,54,30,30,,,,,,
 gemma-4-26b,swap,UD-Q6_K_XL,7,done,2,87.0,73.3,80.0,69.3,66.7,1,,,100,97.5,83.3,2032,81.5,3482,76.0,2.60,3604,94.1,,,,,,,,87.0,54,30,30,,,,,,
@@ -15,6 +15,7 @@ thinkingcap-qwen3.8-27b-udq4kxl,swap,UD-Q4_K_XL,13,done,11,94.4,60,20.7,181,80,5
 thinkingcap-qwen3.8-27b-medium,swap,Q4_K_M,14,partial,,92.6,,9.15,,,,,,,,,,,,,,,,,,,,,,,92.6,54,,,,,,,,
 inkling-2-mini,swap,UD-Q4_K_XL,15,partial,,100,,147,,,,,,,,,525,31.6,521,25.3,16.0,,,,,,68.3,725,,,100,54,,,,,60,,,
 inkling-2-mini-medium,swap,UD-Q4_K_XL,16,partial,,96.3,,38.5,,73.3,5,,,,,,,,,,,,,,,,,,,,96.3,54,,30,,,,,,
+strata-inkling-2-mini-medium,strata,,17,partial,,100,,48.4,,66.7,0,,,,,,7854,76.2,795,64.6,10.2,,,,,,,,,,100,54,,30,,,,,,
 avalon-iq3ks,avalon,IQ3_KS,,not run,,,,,,,,,,100,95,100,262,68.7,721,44.9,11.6,,,,,,,,,,,,,,,,,,,
 avalon-udq4kxl,avalon,UD-Q4_K_XL,,not run,,,,,,,,,,100,97.5,100,166,40.5,461,30.5,17.8,,,,,,,,,,,,,,,,,,,
 gemma-4-e4b,swap,Q4_K_M,,not run,,,,,,,,,,100,95,50,2590,85.8,4349,84.9,2.01,,,,,,,,,,,,,,,,,,,

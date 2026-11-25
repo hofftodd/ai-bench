@@ -57,6 +57,8 @@ The R9700 sits behind a 4-lane link. The root port supports 16 GT/s, but the lin
 
 - [x] **Newer engines and reasoning effort medium** (`queues/r9700-inkling2-tune.sh`). Every engine decodes at 31–35 tok/s; medium scored 96.3% terminal-x3 in 38.5 min and 22/30 LCB at 64k (high: 147 min, 17/30). ai-swap now defaults it to medium via `models.conf` (ANALYSIS.md, Nov 23–24).
 - [ ] **Project Maya's `maya-ik2` HIP engine** wasn't tried: cloning and running its installer on mini-ubuntu needs a manual go-ahead (it needs rocWMMA headers for ROCm 7.1.1).
+- [x] **Strata's Inkling engine** (`queues/r9700-inkling-strata.sh`, `-nocap.sh`, 2026-11-24): SQ-20 pack, 64.6 tok/s at 8k (2× llama.cpp), 100% terminal-x3 in 48 min, LCB 20/30 at 64k with the thinking cap off (43.3% with Strata's default 4,096-token cap at medium). Still not a pick (ANALYSIS.md, Nov 24–25).
+- [x] **Strata engine 0.1.67 for Flash-Next** (the update moved the `strata` pick): 77.2 tok/s at 8k against 67.8, and LCB 83.3% at 32k (same as 0.1.48, none cut off) in 104 min. Kept.
 - [ ] **Mainline Vulkan for Inkling** reads long prompts 25% faster than the fork, but needs the Mainline_Support GGUF and drops DSpark. Switch only if Inkling takes long-context jobs.
 
 ### Radiance
@@ -116,6 +118,8 @@ A second engine on the R9700: C++/HIP, its own `.rad` containers, request batchi
 - [x] **flint on Splash with several agents** (queue 25, 2026-11-23): 453 against oMLX's 358 tok/s in total at 8 in flight. ai-swap's `flint` moved to Splash on 2026-11-24 (`flint-omlx` kept). flint on LCB-60 at 64k: 70.0%.
 - [x] **Ripple DFlash2 drafter** (queue 26, 2026-11-24): b12192 aborted on load; on llama.cpp master (`~/src/llama.cpp-1124`, `metal-1124`) with Ricursive's drafter converted there, 41.3 / 28.8 tok/s at 512 / 8k against 21.8 / 21.1, and no gain with 8 in flight (39.5 vs 39.6). Still not a pick.
 - [x] **flint on Splash through ai-swap, `terminal-x3`** (`swap-flint`, queue 26): 94.4% in 3.6 min, no bad calls; only `kill-rogue` failed (3 of 3, against 2 of 3 on oMLX).
+- [x] **Splash 1.7.2 and Inkling 2 Mini** (queue 27, 2026-11-24): flint on 1.7.2 within noise of 1.7.0 (63.3% vs 66.7% LCB at 32k, 299/238 vs 270/260 tok/s at 512/8k), so Homebrew stays on 1.7.0. Inkling 2 Mini at medium: 70.0% LCB-60 at 64k, 98.1% terminal-x3 in 5 min, 135 tok/s at 8k, 267 total at 8 in flight. In ai-swap on demand as `inkling-2-mini` from 2026-11-25 (bin override to `~/src/splash-1.7.2`; backup `config.yaml.bak-20261125`).
+- [ ] **Move Homebrew Splash to 1.7.2** when convenient, then drop the `bin` override: rerun flint's `terminal-x3` and `speed-concurrent-eos` on 1.7.2 first.
 - [ ] **Hy4-Flash** (Tencent, 220B-A12B, DFly2 drafter): needs oMLX ≥ 0.8.1 (#5463; we're on 0.8.0) and `Jundot/Hy4-flash-oQ4h-mtp` (132 GB). Upgrade oMLX (rebuild the kernels, recheck Flash-Next), then `speed-quick-eos`, `terminal-x3`, `livecodebench-60-64k`. Mainly a research/document candidate; Tencent points coding at the bigger Hy4. llama.cpp support is PR #32517.
 
 The first queue (32k, 64k, 128k) is done. Since then (2026-11-06): Qwen3.8-Flash-Next on llama.cpp and Inkling-Small on oMLX, both in [ANALYSIS-mac.md](ANALYSIS-mac.md).
