@@ -123,10 +123,11 @@ These pair each machine's best engine for a model. Engine, quant and hardware al
 | first token @8k | 16.0 s | 10.2 s | **1.3 s** |
 | total, 8 in flight | — | — | 267 |
 | terminal-x3 | 96.3% in 38.5 min | 100% in 48.4 min | 98.1% in **5.1 min** |
-| LCB, the 30 at 64k | **22/30** in 344 min | 20/30 in 111 min | queued (queue 28) |
+| LCB, the 30 at 64k | **22/30** in 344 min | 20/30 in 111 min | 19/30 in 48 min |
+| LCB, the 30 at 128k | — | — | 23/30 in 58 min |
 | LCB-60 at 64k | 68.3% at effort high | — | 70.0% in 85 min |
 
-- **Quality is the same everywhere,** within noise, on both suites. Strata needs its thinking cap turned off (`reasoning_budget_tokens: 0`); with its default 4,096-token cap at medium it scored 43.3%.
+- **Quality is the same everywhere,** within noise, on both suites (19–22 of the 30 at 64k). Strata needs its thinking cap turned off (`reasoning_budget_tokens: 0`); with its default 4,096-token cap at medium it scored 43.3%.
 - **Speed is the engine as much as the machine.** On the same R9700, Strata is 2.6× llama.cpp at 8k. The Mac is twice Strata again, and its first token comes 8–12× sooner, which is why terminal-x3 (many short turns) takes 5 minutes there against 38–48.
 - **Both machines hold it in GPU memory** (~17–20 GB), so unlike DeepSeek this isn't the capacity effect: it's kernels and memory bandwidth.
 

@@ -33,7 +33,8 @@ omlx-qwen3.8-flash-next-budget64k-greedy,omlx,,,not run,,,,,,90,0,,,,,,,,,,,,,,,
 ripple-65b-dflash2,metal-1124,Q4_K_M,,not run,,,,,,,,,,,,,437,41.3,448,28.8,18.4,,,,,,,,,,,,,,,,,,,
 ripple-65b-m1124,metal-1124,Q4_K_M,,not run,,,,,,,,,,,,,434,21.8,438,21.1,18.9,,,,,,,,,,,,,,,,,,,
 splash-qwen3.8-flash-next,splash,,,not run,,100,,6.30,,,,,,,,,3281,147,4880,133,1.68,,,85,0,52.7,,,,,100,54,,,,60,,,,
-splash172-inkling-2-mini-medium,splash-172,,,not run,,98.1,,5.09,,,,,,,,,4836,158,6357,135,1.32,,,,,,70,85.2,,,98.1,54,,,,,60,3,Second executor,"Inkling 2 Mini at medium effort on Splash 1.7.2, ai-swap's `inkling-2-mini` (on demand) since Nov 25: 70% on LCB-60 at 64k (flint's score), 98.1% terminal-x3 in 5 min, 135 tok/s at 8k and 267 in total with 8 in flight, from ~20 GB."
+splash172-inkling-2-mini-medium,splash-172,,,not run,,98.1,,5.09,,63.3,8,76.7,2,,,,4836,158,6357,135,1.32,,,,,,70,85.2,94.4,11.2,98.1,54,,30,30,,60,3,Second executor,"Inkling 2 Mini at medium effort on Splash 1.7.2, ai-swap's `inkling-2-mini` (on demand) since Nov 25: 70% on LCB-60 at 64k (flint's score), 98.1% terminal-x3 in 5 min, 135 tok/s at 8k and 267 in total with 8 in flight, from ~20 GB."
 swap-flint,swap,,,not run,,94.4,,3.64,,,,,,,,,,,,,,,,,,,,,,,94.4,54,,,,,,,,
+swap-inkling-2-mini,swap,,,not run,,98.1,,6.76,,,,,,,,,,,,,,,,,,,,,,,98.1,54,,,,,,,,
 swap-qwen3.8-flash-next,swap,,,not run,,98.1,,19.6,,,,,,,,,,,,,,,,86.7,0,80.3,,,,,98.1,54,,,,60,,,,
 thinkingcap-qwen3.8-flash-next-budget64k,metal,Q4_K_M,,not run,,,,,,86.7,0,,,,,,,,,,,,,,,,,,,,,,,30,,,,,,
